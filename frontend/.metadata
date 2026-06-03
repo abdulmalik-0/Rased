@@ -1,0 +1,23 @@
+# This file tracks properties of this Flutter project.
+# Used by Flutter tool; run `flutter create .` to regenerate platform folders.
+
+version:
+  revision: "stable"
+  channel: "stable"
+
+project_type: app
+
+migration:
+  platforms:
+    - platform: root
+      create_revision: stable
+      base_revision: stable
+    - platform: web
+      create_revision: stable
+      base_revision: stable
+    - platform: windows
+      create_revision: stable
+      base_revision: stable
+
+  unmanaged_files:
+    - lib/main.dart

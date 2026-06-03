@@ -1,0 +1,15 @@
+# Rased + Self-hosted Supabase (single project/network: rased_default)
+#
+# Setup:  .\scripts\setup-supabase-docker.ps1
+#         copy .env.example .env
+#         docker compose up -d
+#
+# Host ports (no conflict with 8000/8080/8081/80/5678 on your server):
+#   8002  Rased API     | 8082 Rased UI | 8003 Supabase Kong
+
+name: rased
+
+include:
+  - path: ./supabase/docker/docker-compose.yml
+    env_file: .env
+  - path: ./docker-compose.rased.yml
