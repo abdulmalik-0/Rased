@@ -41,7 +41,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadChats());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadChats();
+      // On a normal entry (not jumping into a specific analysis), reveal the
+      // conversations drawer so past chats are visible and deletable.
+      if (mounted &&
+          widget.initialChatId == null &&
+          widget.initialMessages == null &&
+          _chats.isNotEmpty) {
+        _scaffoldKey.currentState?.openDrawer();
+      }
+    });
   }
 
   @override
