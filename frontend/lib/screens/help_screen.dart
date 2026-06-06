@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
+import '../utils/clipboard.dart';
 
 /// Self-contained, bilingual in-app user guide. Explains install, linking,
 /// roles, AI, links, UPS, history & alerts — no external docs needed.
@@ -211,12 +211,7 @@ class _CommandBox extends StatelessWidget {
           IconButton(
             tooltip: context.tr('copy'),
             icon: Icon(Icons.copy, size: 16, color: colors.textSecondary),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: text));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(context.tr('copied'))),
-              );
-            },
+            onPressed: () => copyToClipboard(context, text),
           ),
         ],
       ),

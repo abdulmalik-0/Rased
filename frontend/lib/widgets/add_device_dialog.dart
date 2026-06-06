@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
+import '../utils/clipboard.dart';
 
 /// One-command "add a Linux machine" dialog. Builds a single curl bootstrap that
 /// downloads Rased from GitHub and starts the agent. Secrets are masked on
@@ -255,12 +255,7 @@ class _CmdBlock extends StatelessWidget {
                     : context.tr('revealSecrets')),
               ),
               TextButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: copyText));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.tr('copied'))),
-                  );
-                },
+                onPressed: () => copyToClipboard(context, copyText),
                 icon: const Icon(Icons.copy, size: 16),
                 label: Text(context.tr('copy')),
               ),

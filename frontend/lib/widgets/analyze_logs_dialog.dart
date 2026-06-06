@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +7,7 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../screens/chat_screen.dart';
 import '../theme/app_theme.dart';
+import '../utils/clipboard.dart';
 
 class AnalyzeLogsDialog extends ConsumerStatefulWidget {
   final ContainerMetrics container;
@@ -91,10 +91,7 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
 
   void _copyAll() {
     if (_result == null) return;
-    Clipboard.setData(ClipboardData(text: _result!.analysis));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.tr('copied'))),
-    );
+    copyToClipboard(context, _result!.analysis);
   }
 
   void _continueInChat() {

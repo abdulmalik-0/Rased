@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
+import '../utils/clipboard.dart';
 import '../utils/launch.dart';
 import 'metric_chart.dart';
 
@@ -182,10 +182,7 @@ class ContainerCard extends StatelessWidget {
       icon: Icon(Icons.more_vert, color: colors.textSecondary, size: 20),
       onSelected: (value) {
         if (value == 'copy') {
-          Clipboard.setData(ClipboardData(text: container.name));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(context.tr('copied'))),
-          );
+          copyToClipboard(context, container.name);
         } else {
           onAction(value);
         }
