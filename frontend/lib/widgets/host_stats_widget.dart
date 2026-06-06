@@ -53,36 +53,35 @@ class HostStatsWidget extends StatelessWidget {
                 style: TextStyle(color: colors.textSecondary),
               )
             else ...[
-              _bar(
-                context,
-                colors,
-                context.tr('hostCpu'),
-                host.cpuPercent,
-                '${host.cpuPercent.toStringAsFixed(0)}%'
-                '${host.cpuCores > 0 ? ' · ${host.cpuCores} ${context.tr('cores')}' : ''}',
-              ),
-              const SizedBox(height: 10),
-              _bar(
-                context,
-                colors,
-                context.tr('hostMemory'),
-                host.memoryPercent,
-                '${host.memoryPercent.toStringAsFixed(0)}% · '
+              Wrap(
+                spacing: 20,
+                runSpacing: 16,
+                children: [
+                  _statGauge(
+                    colors,
+                    context.tr('hostCpu'),
+                    host.cpuPercent,
+                    host.cpuCores > 0
+                        ? '${host.cpuCores} ${context.tr('cores')}'
+                        : '',
+                  ),
+                  _statGauge(
+                    colors,
+                    context.tr('hostMemory'),
+                    host.memoryPercent,
                     '${(host.memoryUsedMb / 1024).toStringAsFixed(1)} / '
-                    '${(host.memoryTotalMb / 1024).toStringAsFixed(1)} GB',
-              ),
-              for (final disk in host.disks) ...[
-                const SizedBox(height: 10),
-                _bar(
-                  context,
-                  colors,
-                  '${context.tr('disk')} ${disk.mount}',
-                  disk.percent,
-                  '${disk.percent.toStringAsFixed(0)}% · '
+                        '${(host.memoryTotalMb / 1024).toStringAsFixed(1)} GB',
+                  ),
+                  for (final disk in host.disks)
+                    _statGauge(
+                      colors,
+                      '${context.tr('disk')} ${disk.mount}',
+                      disk.percent,
                       '${disk.usedGb.toStringAsFixed(0)} / '
-                      '${disk.totalGb.toStringAsFixed(0)} GB',
-                ),
-              ],
+                          '${disk.totalGb.toStringAsFixed(0)} GB',
+                    ),
+                ],
+              ),
               if (host.temperatures.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(context.tr('temperatures'),
@@ -157,37 +156,62 @@ class HostStatsWidget extends StatelessWidget {
     );
   }
 
-  Widget _bar(BuildContext context, RasedColors colors, String label,
-      double percent, String trailing) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
-                overflow: TextOverflow.ellipsis,
-              ),
+  /// Large circular gauge for CPU / Memory / Disk: percentage in the middle,
+  /// label and the raw figures underneath.
+  Widget _statGauge(
+      RasedColors colors, String label, double percent, String detail) {
+    final c = _barColor(percent, colors);
+    final frac = (percent / 100).clamp(0.0, 1.0);
+    return SizedBox(
+      width: 130,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 96,
+            height: 96,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 96,
+                  height: 96,
+                  child: CircularProgressIndicator(
+                    value: frac,
+                    strokeWidth: 8,
+                    backgroundColor: colors.surfaceElevated,
+                    valueColor: AlwaysStoppedAnimation<Color>(c),
+                  ),
+                ),
+                Text(
+                  '${percent.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold, color: c),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary),
+          ),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 2),
             Text(
-              trailing,
+              detail,
+              textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, color: colors.textSecondary),
             ),
           ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: LinearProgressIndicator(
-            value: (percent / 100).clamp(0.0, 1.0),
-            backgroundColor: colors.surfaceElevated,
-            color: _barColor(percent, colors),
-            minHeight: 6,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
