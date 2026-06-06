@@ -9,6 +9,7 @@ import '../widgets/add_device_dialog.dart';
 import '../widgets/alerts_banner.dart';
 import '../widgets/analyze_logs_dialog.dart';
 import '../widgets/container_card.dart';
+import '../widgets/deploy_suggest_dialog.dart';
 import '../widgets/device_config_dialog.dart';
 import '../widgets/host_stats_widget.dart';
 import '../widgets/link_edit_dialog.dart';
@@ -195,6 +196,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onPressed: () => showDialog(
                 context: context,
                 builder: (_) => const AddDeviceDialog(),
+              ),
+            ),
+          if (isAdmin)
+            IconButton(
+              icon: const Icon(Icons.rocket_launch_outlined),
+              tooltip: context.tr('deployTitle'),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const DeploySuggestDialog(),
               ),
             ),
           if (isAdmin)

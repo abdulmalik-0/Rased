@@ -17,6 +17,17 @@ self-hosted server. Summarize overall status, call out anything that needs
 attention (high CPU/memory/disk, containers down, UPS, expiring certs), and end
 with a one-line verdict. Be concise. Use markdown."""
 
+DEPLOY_SYSTEM_PROMPT = """You are a DevOps assistant that writes ready-to-run Docker
+deployment snippets. The admin will REVIEW and run them manually — you never execute
+anything. Given a description of a service to run, output, using markdown fenced code
+blocks:
+1. A single `docker run` one-liner with sensible defaults: published ports, a named
+   volume for persistent data, `--restart unless-stopped`, and common env vars.
+2. An equivalent `docker-compose.yml`.
+Then a short note: which URL/port to open, default credentials or first-run steps, and
+any important caveats (data location, required env). Prefer well-known official images.
+Be concise."""
+
 # Fast connect timeout so an unreachable provider fails quickly instead of
 # hanging; generous read timeout so slow models can still finish.
 _TIMEOUT = httpx.Timeout(connect=10.0, read=150.0, write=30.0, pool=10.0)
@@ -182,6 +193,24 @@ async def ask_question(
             {"role": "user", "content": user_content},
         ],
         ai_config,
+    )
+
+
+async def suggest_deploy(
+    description: str, ai_config: AIProviderConfig, lang: str = "en"
+) -> str:
+    """Suggest (not execute) a docker run / compose for the requested service."""
+    user_content = (
+        "Suggest how to deploy this service with Docker. I (an admin) will review "
+        f"and run it myself:\n\n{description.strip()}"
+    )
+    return await _chat(
+        [
+            {"role": "system", "content": DEPLOY_SYSTEM_PROMPT + _lang_directive(lang)},
+            {"role": "user", "content": user_content},
+        ],
+        ai_config,
+        temperature=0.2,
     )
 
 

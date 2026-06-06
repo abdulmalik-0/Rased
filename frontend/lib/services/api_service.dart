@@ -303,6 +303,27 @@ class ApiService {
     return AskResult.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
+  /// Admin-only: ask the AI to suggest a docker run / compose (it does not run).
+  Future<String> suggestDeploy({
+    required String description,
+    required AIProviderConfig aiConfig,
+    String lang = 'en',
+  }) async {
+    final resp = await _client
+        .post(Uri.parse('$backendUrl/deploy/suggest'),
+            headers: _headers(json: true),
+            body: jsonEncode({
+              'description': description,
+              'ai_config': aiConfig.toJson(),
+              'lang': lang,
+            }))
+        .timeout(_aiTimeout);
+    if (resp.statusCode != 200) throw Exception(_err(resp));
+    return (jsonDecode(resp.body) as Map<String, dynamic>)['suggestion']
+            as String? ??
+        '';
+  }
+
   Future<List<String>> fetchLogs({
     required String containerId,
     int tail = 200,

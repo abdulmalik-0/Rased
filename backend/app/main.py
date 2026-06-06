@@ -8,7 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import settings
 from app.models.schemas import HostStats, MetricsPayload
-from app.routers import actions, analyze, ask, auth, data, ingest, logs, setup, ws
+from app.routers import (
+    actions,
+    analyze,
+    ask,
+    auth,
+    data,
+    deploy,
+    ingest,
+    logs,
+    setup,
+    ws,
+)
 from app.services.collector import build_payload, collector_loop
 from app.services.host_service import host_service
 from app.services.realtime import realtime
@@ -65,6 +76,7 @@ app.include_router(logs.router)
 app.include_router(analyze.router)
 app.include_router(actions.router)
 app.include_router(ask.router)
+app.include_router(deploy.router)
 
 # Central node owns auth, data, ingest, setup and the realtime WebSocket.
 if settings.is_central:

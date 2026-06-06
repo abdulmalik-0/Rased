@@ -114,6 +114,17 @@ class AskResponse(BaseModel):
     model_used: str
 
 
+class DeploySuggestRequest(BaseModel):
+    description: str
+    ai_config: AIProviderConfig
+    lang: str = "en"
+
+
+class DeploySuggestResponse(BaseModel):
+    suggestion: str
+    model_used: str
+
+
 class ContainerActionRequest(BaseModel):
     action: str = Field(..., description="restart | stop | start")
 
