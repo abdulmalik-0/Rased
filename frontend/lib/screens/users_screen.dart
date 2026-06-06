@@ -16,11 +16,18 @@ class UsersScreen extends ConsumerWidget {
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref
-          .read(supabaseClientProvider)
-          .from('profiles')
-          .update({'role': role}).eq('id', id);
-      ref.invalidate(profilesProvider);
+      await ref.read(apiProvider).setUserRole(id, role);
+      ref.invalidate(usersProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _setApproved(BuildContext context, WidgetRef ref, String id) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(apiProvider).setUserApproved(id, true);
+      ref.invalidate(usersProvider);
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -30,7 +37,7 @@ class UsersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final isAdmin = ref.watch(isAdminProvider);
-    final profiles = ref.watch(profilesProvider);
+    final profiles = ref.watch(usersProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,7 +45,7 @@ class UsersScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(profilesProvider),
+            onPressed: () => ref.invalidate(usersProvider),
           ),
         ],
       ),
@@ -67,6 +74,7 @@ class UsersScreen extends ConsumerWidget {
                   final id = p['id'] as String;
                   final email = (p['email'] as String?) ?? id;
                   final role = (p['role'] as String?) ?? 'viewer';
+                  final approved = p['approved'] == 1 || p['approved'] == true;
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -90,6 +98,13 @@ class UsersScreen extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (!approved) ...[
+                            FilledButton.tonal(
+                              onPressed: () => _setApproved(context, ref, id),
+                              child: Text(context.tr('approve')),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           DropdownButton<String>(
                             value: role == 'admin' ? 'admin' : 'viewer',
                             underline: const SizedBox.shrink(),

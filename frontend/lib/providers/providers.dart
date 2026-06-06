@@ -1,72 +1,76 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
-import '../services/backend_service.dart';
+import '../services/api_service.dart';
 
 /// Overridden in main() with the loaded instance.
 final sharedPrefsProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('sharedPrefsProvider must be overridden'),
 );
 
-final backendServiceProvider = Provider<BackendService>((ref) {
-  return BackendService();
-});
-
-final supabaseClientProvider = Provider<SupabaseClient>((ref) {
-  return Supabase.instance.client;
+final apiProvider = Provider<ApiService>((ref) {
+  return ApiService(token: () => ref.read(authProvider)?.token);
 });
 
 // ============================================================
-// Authentication + roles
+// Auth
 // ============================================================
-final authStateProvider = StreamProvider<AuthState>((ref) {
-  return Supabase.instance.client.auth.onAuthStateChange;
-});
+class AuthController extends StateNotifier<AuthSession?> {
+  AuthController(this._prefs) : super(_load(_prefs));
 
-final sessionProvider = Provider<Session?>((ref) {
-  ref.watch(authStateProvider);
-  return Supabase.instance.client.auth.currentSession;
-});
+  final SharedPreferences _prefs;
+  final ApiService _api = ApiService();
+  static const _key = 'auth_token';
 
-/// Resolves (and lazily creates) the current user's role via ensure_profile().
-/// First-ever user becomes 'admin', everyone else 'viewer'.
-final roleProvider = FutureProvider<String>((ref) async {
-  ref.watch(authStateProvider);
-  final client = ref.watch(supabaseClientProvider);
-  final user = client.auth.currentUser;
-  if (user == null) return 'viewer';
-  try {
-    final r = await client.rpc(
-      'ensure_profile',
-      params: {'p_email': user.email ?? ''},
+  static AuthSession? _load(SharedPreferences prefs) {
+    final t = prefs.getString(_key);
+    if (t == null || t.isEmpty) return null;
+    final claims = decodeJwt(t);
+    final exp = claims['exp'];
+    if (exp is int && exp * 1000 < DateTime.now().millisecondsSinceEpoch) {
+      return null;
+    }
+    return AuthSession(
+      token: t,
+      email: claims['email']?.toString() ?? '',
+      role: claims['role']?.toString() ?? 'viewer',
     );
-    return (r as String?) ?? 'viewer';
-  } catch (_) {
-    return 'viewer';
   }
+
+  Future<void> login(String email, String password) async {
+    final s = await _api.login(email, password);
+    await _prefs.setString(_key, s.token);
+    state = s;
+  }
+
+  /// Returns true if the account is created but pending admin approval.
+  Future<bool> register(String email, String password) async {
+    final r = await _api.register(email, password);
+    if (r.pending || r.session == null) return true;
+    await _prefs.setString(_key, r.session!.token);
+    state = r.session;
+    return false;
+  }
+
+  void logout() {
+    _prefs.remove(_key);
+    state = null;
+  }
+}
+
+final authProvider = StateNotifierProvider<AuthController, AuthSession?>((ref) {
+  return AuthController(ref.watch(sharedPrefsProvider));
 });
 
 final isAdminProvider = Provider<bool>((ref) {
-  return ref.watch(roleProvider).maybeWhen(
-        data: (r) => r == 'admin',
-        orElse: () => false,
-      );
-});
-
-/// All user profiles (admin-only; RLS returns just your own row for viewers).
-final profilesProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.watch(authStateProvider);
-  final client = ref.watch(supabaseClientProvider);
-  final rows = await client
-      .from('profiles')
-      .select('id,email,role,created_at')
-      .order('created_at');
-  return (rows as List).cast<Map<String, dynamic>>();
+  return ref.watch(authProvider)?.isAdmin ?? false;
 });
 
 // ============================================================
@@ -74,13 +78,11 @@ final profilesProvider =
 // ============================================================
 class LocaleNotifier extends StateNotifier<Locale> {
   LocaleNotifier(this._prefs) : super(_initial(_prefs));
-
   final SharedPreferences _prefs;
   static const _key = 'locale';
 
-  static Locale _initial(SharedPreferences prefs) {
-    return Locale(prefs.getString(_key) == 'ar' ? 'ar' : 'en');
-  }
+  static Locale _initial(SharedPreferences prefs) =>
+      Locale(prefs.getString(_key) == 'ar' ? 'ar' : 'en');
 
   void set(Locale locale) {
     state = locale;
@@ -91,16 +93,14 @@ class LocaleNotifier extends StateNotifier<Locale> {
       set(state.languageCode == 'ar' ? const Locale('en') : const Locale('ar'));
 }
 
-final localeProvider = StateNotifierProvider<LocaleNotifier, Locale>((ref) {
-  return LocaleNotifier(ref.watch(sharedPrefsProvider));
-});
+final localeProvider = StateNotifierProvider<LocaleNotifier, Locale>(
+    (ref) => LocaleNotifier(ref.watch(sharedPrefsProvider)));
 
 // ============================================================
 // Theme mode (persisted)
 // ============================================================
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   ThemeModeNotifier(this._prefs) : super(_initial(_prefs));
-
   final SharedPreferences _prefs;
   static const _key = 'theme_mode';
 
@@ -121,102 +121,93 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   }
 }
 
-final themeModeProvider =
-    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
-  return ThemeModeNotifier(ref.watch(sharedPrefsProvider));
-});
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
+    (ref) => ThemeModeNotifier(ref.watch(sharedPrefsProvider)));
 
 // ============================================================
-// Live metrics per host (Supabase Realtime Broadcast + fallback polling).
-// Multiple agents broadcast to the same channel; we key payloads by host_id.
+// Live metrics per host (WebSocket + REST fallback)
 // ============================================================
 class MetricsNotifier extends StateNotifier<Map<String, MetricsPayload>> {
-  MetricsNotifier(this._backend, this._supabase) : super({}) {
+  MetricsNotifier(this._api, this._token) : super({}) {
     _init();
   }
 
-  final BackendService _backend;
-  final SupabaseClient _supabase;
-  RealtimeChannel? _channel;
-  bool _realtimeConnected = false;
-
-  void _store(MetricsPayload p) {
-    state = {...state, p.hostId: p};
-  }
+  final ApiService _api;
+  final String? _token;
+  WebSocketChannel? _channel;
+  StreamSubscription? _sub;
+  Timer? _reconnect;
+  bool _disposed = false;
 
   Future<void> _init() async {
-    _subscribeBroadcast();
     await refresh();
+    _connect();
   }
 
-  void _subscribeBroadcast() {
-    _channel = _supabase
-        .channel(metricsBroadcastChannel)
-        .onBroadcast(
-          event: 'metrics',
-          callback: (payload) {
-            try {
-              final data = payload['payload'] as Map<String, dynamic>? ?? payload;
-              _store(MetricsPayload.fromJson(Map<String, dynamic>.from(data)));
-              _realtimeConnected = true;
-            } catch (_) {}
-          },
-        )
-        .subscribe();
-  }
-
-  Future<void> refresh() async {
-    if (!_realtimeConnected || state.isEmpty) {
-      await fetchFrom(backendUrl);
+  void _connect() {
+    if (_disposed || _token == null || _token.isEmpty) return;
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(wsMetricsUrl(_token)));
+      _sub = _channel!.stream.listen(
+        (data) {
+          try {
+            final p = MetricsPayload.fromJson(
+                jsonDecode(data as String) as Map<String, dynamic>);
+            state = {...state, p.hostId: p};
+          } catch (_) {}
+        },
+        onDone: _scheduleReconnect,
+        onError: (_) => _scheduleReconnect(),
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _scheduleReconnect();
     }
   }
 
-  /// Fetch a REST snapshot from a specific agent (realtime fallback / manual).
-  Future<void> fetchFrom(String baseUrl) async {
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    _reconnect?.cancel();
+    _reconnect = Timer(const Duration(seconds: 5), () {
+      refresh();
+      _connect();
+    });
+  }
+
+  Future<void> refresh() async {
     try {
-      _store(await _backend.fetchMetrics(baseUrl: baseUrl));
+      for (final p in await _api.getMetricsAll()) {
+        state = {...state, p.hostId: p};
+      }
     } catch (_) {}
   }
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
+    _disposed = true;
+    _sub?.cancel();
+    _channel?.sink.close();
+    _reconnect?.cancel();
     super.dispose();
   }
 }
 
 final metricsProvider =
     StateNotifierProvider<MetricsNotifier, Map<String, MetricsPayload>>((ref) {
-  ref.watch(authStateProvider); // re-subscribe with the signed-in session
-  return MetricsNotifier(
-    ref.watch(backendServiceProvider),
-    ref.watch(supabaseClientProvider),
-  );
+  final session = ref.watch(authProvider);
+  return MetricsNotifier(ref.watch(apiProvider), session?.token);
 });
 
 // ============================================================
 // Devices (multi-server tabs)
 // ============================================================
 final devicesProvider = FutureProvider<List<Device>>((ref) async {
-  ref.watch(authStateProvider);
-  final client = ref.watch(supabaseClientProvider);
-  try {
-    final rows = await client
-        .from('devices')
-        .select('host_id,host_name,api_url,last_seen')
-        .order('host_name');
-    return (rows as List)
-        .map((r) => Device.fromJson(r as Map<String, dynamic>))
-        .toList();
-  } catch (_) {
-    return <Device>[];
-  }
+  ref.watch(authProvider);
+  return ref.watch(apiProvider).getDevices();
 });
 
 final selectedDeviceProvider = StateProvider<String?>((ref) => null);
 
-/// Registered devices merged with any host seen via realtime; falls back to a
-/// single default device for a plain single-host setup.
 final deviceListProvider = Provider<List<Device>>((ref) {
   final table = ref.watch(devicesProvider).asData?.value ?? const <Device>[];
   final metricsMap = ref.watch(metricsProvider);
@@ -226,9 +217,7 @@ final deviceListProvider = Provider<List<Device>>((ref) {
   }
   metricsMap.forEach((hostId, p) {
     byId.putIfAbsent(
-      hostId,
-      () => Device(hostId: hostId, hostName: p.hostName, apiUrl: ''),
-    );
+        hostId, () => Device(hostId: hostId, hostName: p.hostName, apiUrl: ''));
   });
   if (byId.isEmpty) {
     byId['default'] =
@@ -240,7 +229,6 @@ final deviceListProvider = Provider<List<Device>>((ref) {
   return list;
 });
 
-/// The active device (selected tab), resolved against the device list.
 final activeDeviceProvider = Provider<Device>((ref) {
   final devices = ref.watch(deviceListProvider);
   final sel = ref.watch(selectedDeviceProvider);
@@ -252,39 +240,46 @@ final activeDeviceProvider = Provider<Device>((ref) {
       : const Device(hostId: 'default', hostName: 'My Server', apiUrl: '');
 });
 
-/// Backend URL for the active device (falls back to the build default).
 final selectedApiUrlProvider = Provider<String>((ref) {
   final d = ref.watch(activeDeviceProvider);
   return d.apiUrl.isNotEmpty ? d.apiUrl : backendUrl;
 });
 
+/// Ready-to-run agent linking info (admin only) — fetched on demand.
+final agentSetupProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.watch(authProvider);
+  return ref.watch(apiProvider).getAgentSetup();
+});
+
+/// Admin-defined custom links per container, keyed by container name.
+final linksProvider =
+    FutureProvider.family<Map<String, Map<String, String>>, String>(
+        (ref, hostId) async {
+  ref.watch(authProvider);
+  final rows = await ref.watch(apiProvider).getLinks(hostId);
+  return {
+    for (final r in rows)
+      (r['name'] as String): {
+        'url': r['url']?.toString() ?? '',
+        'label': r['label']?.toString() ?? '',
+      }
+  };
+});
+
 // ============================================================
-// AI settings (encrypted at rest in Supabase)
+// AI settings (per user)
 // ============================================================
 class SettingsNotifier extends StateNotifier<AsyncValue<AIProviderConfig?>> {
-  SettingsNotifier(this._supabase) : super(const AsyncValue.loading()) {
+  SettingsNotifier(this._api) : super(const AsyncValue.loading()) {
     load();
   }
 
-  final SupabaseClient _supabase;
+  final ApiService _api;
 
   Future<void> load() async {
     state = const AsyncValue.loading();
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        state = const AsyncValue.data(null);
-        return;
-      }
-
-      final rows = await _supabase.rpc('get_settings_decrypted');
-      if (rows is List && rows.isNotEmpty) {
-        state = AsyncValue.data(
-          AIProviderConfig.fromJson(rows.first as Map<String, dynamic>),
-        );
-      } else {
-        state = const AsyncValue.data(null);
-      }
+      state = AsyncValue.data(await _api.getSettings());
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -293,12 +288,7 @@ class SettingsNotifier extends StateNotifier<AsyncValue<AIProviderConfig?>> {
   Future<void> save(AIProviderConfig config) async {
     state = const AsyncValue.loading();
     try {
-      await _supabase.rpc('upsert_settings', params: {
-        'p_provider_type': config.providerType,
-        'p_base_url': config.baseUrl,
-        'p_model_name': config.modelName,
-        'p_api_key': config.apiKey,
-      });
+      await _api.saveSettings(config);
       state = AsyncValue.data(config.copyWith(apiKey: ''));
       await load();
     } catch (e, st) {
@@ -311,35 +301,34 @@ class SettingsNotifier extends StateNotifier<AsyncValue<AIProviderConfig?>> {
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, AsyncValue<AIProviderConfig?>>(
         (ref) {
-  ref.watch(authStateProvider); // reload settings when the signed-in user changes
-  return SettingsNotifier(ref.watch(supabaseClientProvider));
+  ref.watch(authProvider);
+  return SettingsNotifier(ref.watch(apiProvider));
 });
 
 // ============================================================
-// Historical metrics (time-bucketed via RPC) — range in hours.
+// History (time-bucketed) + range
 // ============================================================
-/// Selected history range, in hours: 24 (day) / 168 (week) / 720 (month).
 final historyRangeProvider = StateProvider<int>((ref) => 24);
 
 final historyProvider = FutureProvider<List<HistoryPoint>>((ref) async {
-  ref.watch(authStateProvider);
+  ref.watch(authProvider);
   final hours = ref.watch(historyRangeProvider);
-  final client = ref.watch(supabaseClientProvider);
-  final rows = await client.rpc(
-    'get_metrics_history',
-    params: {'p_hours': hours, 'p_buckets': 200},
-  );
-  return (rows as List)
-      .map((r) => HistoryPoint.fromJson(r as Map<String, dynamic>))
-      .toList();
+  return ref.watch(apiProvider).getHistory(hours);
 });
 
 // ============================================================
-// Rolling in-memory CPU/RAM history for live charts (last 30 samples)
+// Users (admin)
+// ============================================================
+final usersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(authProvider);
+  return ref.watch(apiProvider).getUsers();
+});
+
+// ============================================================
+// Rolling in-memory CPU/RAM history for live charts
 // ============================================================
 class ChartHistoryNotifier extends StateNotifier<Map<String, List<double>>> {
   ChartHistoryNotifier() : super({});
-
   static const maxPoints = 30;
 
   void addSample(String containerId, double cpu, double memory) {
@@ -352,7 +341,6 @@ class ChartHistoryNotifier extends StateNotifier<Map<String, List<double>>> {
     state = {...state, key: cpuList, memKey: memList};
   }
 
-  /// Drop history for containers that no longer exist (prevents unbounded growth).
   void retain(Set<String> activeIds) {
     final next = <String, List<double>>{};
     var changed = false;
@@ -370,6 +358,4 @@ class ChartHistoryNotifier extends StateNotifier<Map<String, List<double>>> {
 
 final chartHistoryProvider =
     StateNotifierProvider<ChartHistoryNotifier, Map<String, List<double>>>(
-        (ref) {
-  return ChartHistoryNotifier();
-});
+        (ref) => ChartHistoryNotifier());

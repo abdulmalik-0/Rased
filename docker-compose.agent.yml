@@ -1,13 +1,12 @@
 # Rased — standalone AGENT for an additional machine / LXC.
-# Runs ONLY rased-api, pointing at your CENTRAL Supabase. It self-registers and
-# broadcasts metrics, so it shows up as a new tab in the dashboard automatically.
+# Runs ONLY rased-api; it POSTs its metrics to the CENTRAL node and shows up
+# as a new tab in the dashboard. No DB here (the central node owns it).
 #
 # On the new machine (copy backend/, this file, and .env.agent.example):
 #   cp .env.agent.example .env.agent
-#   # edit RASED_HOST_ID, RASED_HOST_NAME, RASED_PUBLIC_BASE_URL, SUPABASE_URL, keys
+#   # edit RASED_HOST_ID, RASED_HOST_NAME, RASED_PUBLIC_BASE_URL,
+#   #      CENTRAL_INGEST_URL, AGENT_TOKEN, JWT_SECRET (same as central)
 #   docker compose --env-file .env.agent -f docker-compose.agent.yml up -d --build
-#
-# .env.agent holds secrets (service_role / jwt) and is gitignored.
 name: rased-agent
 
 services:
@@ -22,20 +21,22 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      # Central Supabase (the machine running the full stack)
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      SUPABASE_JWT_SECRET: ${JWT_SECRET}
-      SUPABASE_BROADCAST_CHANNEL: ${SUPABASE_BROADCAST_CHANNEL:-server-metrics}
-      # Identity (MUST be unique per machine)
+      # Point at the CENTRAL node; this makes the agent "remote".
+      CENTRAL_INGEST_URL: ${CENTRAL_INGEST_URL}
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      # Must match the central JWT secret to verify dashboard user tokens.
+      JWT_SECRET: ${JWT_SECRET}
+      # Identity (unique per machine)
       HOST_ID: ${RASED_HOST_ID:-lxc}
       HOST_NAME: ${RASED_HOST_NAME:-LXC}
       PUBLIC_BASE_URL: ${RASED_PUBLIC_BASE_URL:-}
       CORS_ORIGINS: ${RASED_CORS_ORIGINS:-}
-      # Optional UPS / alerts / server-side AI
+      METRICS_INTERVAL_SECONDS: ${METRICS_INTERVAL_SECONDS:-3}
+      # Optional UPS / uptime / server-side AI (this agent's own)
       NUT_HOST: ${NUT_HOST:-host.docker.internal}
       NUT_PORT: ${NUT_PORT:-3493}
       NUT_UPS_NAME: ${NUT_UPS_NAME:-ups}
+      UPTIME_CHECKS: ${UPTIME_CHECKS:-}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_MODEL: ${AI_MODEL:-}

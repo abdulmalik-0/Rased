@@ -5,14 +5,18 @@ import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/add_device_dialog.dart';
 import '../widgets/alerts_banner.dart';
 import '../widgets/analyze_logs_dialog.dart';
 import '../widgets/container_card.dart';
+import '../widgets/device_config_dialog.dart';
 import '../widgets/host_stats_widget.dart';
+import '../widgets/link_edit_dialog.dart';
 import '../widgets/logs_viewer_dialog.dart';
 import '../widgets/ups_status_widget.dart';
 import '../widgets/uptime_widget.dart';
 import 'chat_screen.dart';
+import 'help_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 import 'users_screen.dart';
@@ -85,7 +89,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(backendServiceProvider).containerAction(
+      await ref.read(apiProvider).containerAction(
             containerId: c.id,
             action: action,
             baseUrl: apiUrl,
@@ -95,7 +99,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           SnackBar(content: Text(context.tr('actionSuccess'))),
         );
       }
-      await ref.read(metricsProvider.notifier).fetchFrom(apiUrl);
+      await ref.read(metricsProvider.notifier).refresh();
     } catch (e) {
       if (mounted) {
         messenger.showSnackBar(
@@ -173,8 +177,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             icon: const Icon(Icons.refresh),
             tooltip: context.tr('refresh'),
             onPressed: () =>
-                ref.read(metricsProvider.notifier).fetchFrom(apiUrl),
+                ref.read(metricsProvider.notifier).refresh(),
           ),
+          if (isAdmin)
+            IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: context.tr('deviceSettings'),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => DeviceConfigDialog(device: activeDevice),
+              ),
+            ),
+          if (isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add_to_queue),
+              tooltip: context.tr('addDevice'),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const AddDeviceDialog(),
+              ),
+            ),
           if (isAdmin)
             IconButton(
               icon: const Icon(Icons.group_outlined),
@@ -183,6 +205,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 MaterialPageRoute(builder: (_) => const UsersScreen()),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: context.tr('help'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const HelpScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: context.tr('settings'),
@@ -193,7 +222,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: context.tr('signOut'),
-            onPressed: () => ref.read(supabaseClientProvider).auth.signOut(),
+            onPressed: () => ref.read(authProvider.notifier).logout(),
           ),
         ],
       ),
@@ -230,7 +259,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             selected: d.hostId == selected,
             avatar: Icon(Icons.circle,
                 size: 10, color: live ? colors.accent : colors.textSecondary),
-            label: Text(d.hostName),
+            label: Text(d.name),
             onSelected: (_) =>
                 ref.read(selectedDeviceProvider.notifier).state = d.hostId,
           );
@@ -259,10 +288,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
+    final links = ref.watch(linksProvider(hostId)).asData?.value ??
+        const <String, Map<String, String>>{};
+    final deviceName = ref.watch(activeDeviceProvider).name;
+
     return RefreshIndicator(
-      onRefresh: () => ref
-          .read(metricsProvider.notifier)
-          .fetchFrom(ref.read(selectedApiUrlProvider)),
+      onRefresh: () => ref.read(metricsProvider.notifier).refresh(),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final crossAxisCount = constraints.maxWidth > 1200
@@ -277,7 +308,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     HostStatsWidget(
-                        host: metrics.host, hostName: metrics.hostName),
+                        host: metrics.host, hostName: deviceName),
                     if (metrics.alerts.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       AlertsBanner(alerts: metrics.alerts),
@@ -332,6 +363,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               onAction: (action) =>
                                   _handleAction(container, action),
                               isAdmin: ref.read(isAdminProvider),
+                              apiUrl: ref.read(selectedApiUrlProvider),
+                              customLink: links[container.name],
+                              onEditLink: () => showDialog(
+                                context: context,
+                                builder: (_) => LinkEditDialog(
+                                  hostId: hostId,
+                                  containerName: container.name,
+                                  url: links[container.name]?['url'] ?? '',
+                                  label: links[container.name]?['label'] ?? '',
+                                ),
+                              ),
                             ),
                           ),
                       ],

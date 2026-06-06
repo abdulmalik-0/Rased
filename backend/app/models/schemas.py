@@ -11,6 +11,7 @@ class ContainerMetrics(BaseModel):
     memory_limit_mb: float = 0.0
     memory_percent: float = 0.0
     restart_count: int = 0
+    ports: list[str] = Field(default_factory=list)
 
 
 class DiskUsage(BaseModel):
@@ -18,6 +19,12 @@ class DiskUsage(BaseModel):
     used_gb: float = 0.0
     total_gb: float = 0.0
     percent: float = 0.0
+
+
+class Temp(BaseModel):
+    label: str
+    current: float
+    high: float | None = None
 
 
 class HostStats(BaseModel):
@@ -28,6 +35,7 @@ class HostStats(BaseModel):
     memory_total_mb: float = 0.0
     memory_percent: float = 0.0
     disks: list[DiskUsage] = Field(default_factory=list)
+    temperatures: list[Temp] = Field(default_factory=list)
     load_avg_1m: float | None = None
     uptime_seconds: float | None = None
     error: str | None = None
@@ -121,3 +129,55 @@ class LogsResponse(BaseModel):
     container_id: str
     lines: list[str]
     sanitized_lines: list[str]
+
+
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    email: str
+    role: str
+
+
+class RoleUpdate(BaseModel):
+    role: str
+
+
+class UserUpdate(BaseModel):
+    role: str | None = None
+    approved: bool | None = None
+
+
+class RegisterResponse(BaseModel):
+    pending: bool = False
+    token: str | None = None
+    email: str
+    role: str
+
+
+class ServerConfig(BaseModel):
+    nut_host: str = ""
+    nut_ups_name: str = ""
+
+
+class DeviceOverride(BaseModel):
+    display_name: str | None = None
+    nut_host: str | None = None
+    nut_ups_name: str | None = None
+
+
+class LinkUpsert(BaseModel):
+    host_id: str
+    name: str
+    url: str = ""
+    label: str = ""
+
+
+class ChatUpsert(BaseModel):
+    id: str | None = None
+    host_id: str = "default"
+    title: str = "Chat"
+    messages: list[dict] = Field(default_factory=list)

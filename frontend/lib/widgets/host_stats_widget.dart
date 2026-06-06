@@ -83,7 +83,74 @@ class HostStatsWidget extends StatelessWidget {
                       '${disk.totalGb.toStringAsFixed(0)} GB',
                 ),
               ],
+              if (host.temperatures.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(context.tr('temperatures'),
+                    style:
+                        TextStyle(fontSize: 12, color: colors.textSecondary)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final t in host.temperatures) _tempGauge(colors, t),
+                  ],
+                ),
+              ],
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Small circular gauge per sensor: ring fills with temperature, the value
+  /// sits in the middle, and the sensor label is shown underneath.
+  Widget _tempGauge(RasedColors colors, Temp t) {
+    final hot = t.high != null ? t.current >= t.high! : t.current >= 80;
+    final c = hot
+        ? colors.danger
+        : (t.current >= 65 ? colors.warning : colors.accent);
+    final frac = (t.current / 100).clamp(0.0, 1.0);
+    return Tooltip(
+      message: '${t.label}: ${t.current.toStringAsFixed(0)}°C',
+      child: SizedBox(
+        width: 62,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 46,
+              height: 46,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 46,
+                    height: 46,
+                    child: CircularProgressIndicator(
+                      value: frac,
+                      strokeWidth: 4,
+                      backgroundColor: colors.surfaceElevated,
+                      valueColor: AlwaysStoppedAnimation<Color>(c),
+                    ),
+                  ),
+                  Text(
+                    '${t.current.toStringAsFixed(0)}°',
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.bold, color: c),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              t.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 9, color: colors.textSecondary),
+            ),
           ],
         ),
       ),

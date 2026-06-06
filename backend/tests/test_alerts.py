@@ -55,18 +55,18 @@ class TestAlertEvaluate(unittest.TestCase):
         alerts = svc.evaluate(_payload())
 
         async def run():
-            first = await svc.dispatch(alerts, now=1000.0)
+            first = await svc.dispatch(alerts, now=1000.0, host_id="t")
             # within cooldown window -> nothing new dispatched
-            second = await svc.dispatch(alerts, now=1001.0)
+            second = await svc.dispatch(alerts, now=1001.0, host_id="t")
             return first, second
 
         first, second = asyncio.run(run())
         # no webhook configured -> _post returns False, so "sent" is empty,
         # but recent must be populated once and not duplicated on the 2nd call.
         self.assertEqual(second, [])
-        self.assertTrue(len(svc.recent) >= 1)
-        recent_after_first = len(svc.recent)
-        self.assertEqual(recent_after_first, len(svc.recent))
+        count_after_first = len(svc.recent_for("t"))
+        self.assertTrue(count_after_first >= 1)
+        self.assertEqual(count_after_first, len(svc.recent_for("t")))
 
 
 if __name__ == "__main__":

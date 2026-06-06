@@ -37,7 +37,7 @@ class _LogsViewerDialogState extends ConsumerState<LogsViewerDialog> {
       _error = null;
     });
     try {
-      final lines = await ref.read(backendServiceProvider).fetchLogs(
+      final lines = await ref.read(apiProvider).fetchLogs(
             containerId: widget.container.id,
             tail: 200,
             baseUrl: widget.apiUrl,

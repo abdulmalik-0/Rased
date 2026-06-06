@@ -1,8 +1,8 @@
-# Supabase self-hosted (cloned by setup script)
-supabase/docker/*
-!supabase/docker/README.md
-!supabase/docker/.gitkeep
-supabase/_upstream/
+# Local SQLite data
+*.db
+*.db-wal
+*.db-shm
+data/
 
 # Dependencies
 __pycache__/

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from docker.errors import DockerException
 
 from app.models.schemas import AskRequest, AskResponse
 from app.services.ai_router import ask_question
+from app.services.auth import require_user
 from app.services.collector import _summarize, build_payload
 from app.services.docker_service import docker_service
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 
 
 @router.post("", response_model=AskResponse)
-async def ask(request: AskRequest) -> AskResponse:
+async def ask(request: AskRequest, _: dict = Depends(require_user)) -> AskResponse:
     if not request.ai_config.base_url or not request.ai_config.model_name:
         raise HTTPException(
             status_code=400, detail="base_url and model_name are required"

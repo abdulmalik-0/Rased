@@ -1,15 +1,74 @@
-# Rased + Self-hosted Supabase (single project/network: rased_default)
+# Rased — CENTRAL stack (no external DB; SQLite inside the agent).
 #
-# Setup:  ./scripts/setup-supabase-docker.sh
-#         cp .env.example .env
-#         docker compose up -d
+# Setup:  cp .env.example .env   (then edit)
+#         docker compose up -d --build
 #
-# Host ports (no conflict with 8000/8080/8081/80/5678 on your server):
-#   8002  Rased API     | 8082 Rased UI | 8003 Supabase Kong
-
+# Host ports: 8002 API · 8082 UI. (SQLite, no external DB — ~250MB total.)
 name: rased
 
-include:
-  - path: ./supabase/docker/docker-compose.yml
-    env_file: .env
-  - path: ./docker-compose.rased.yml
+services:
+  rased-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rased-api
+    restart: unless-stopped
+    ports:
+      - "${RASED_API_PORT:-8002}:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - rased-data:/data
+    environment:
+      DB_PATH: /data/rased.db
+      # Auth / crypto (CHANGE THESE)
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Shared secret so remote agents can POST metrics to this central node
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      # Identity
+      HOST_ID: ${RASED_HOST_ID:-default}
+      HOST_NAME: ${RASED_HOST_NAME:-My Server}
+      PUBLIC_BASE_URL: ${RASED_PUBLIC_BASE_URL:-}
+      CORS_ORIGINS: ${RASED_CORS_ORIGINS}
+      METRICS_INTERVAL_SECONDS: ${METRICS_INTERVAL_SECONDS:-3}
+      # UPS
+      NUT_HOST: ${NUT_HOST:-host.docker.internal}
+      NUT_PORT: ${NUT_PORT:-3493}
+      NUT_UPS_NAME: ${NUT_UPS_NAME:-ups}
+      # Alerting
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-600}
+      CPU_ALERT_PERCENT: ${CPU_ALERT_PERCENT:-90}
+      MEM_ALERT_PERCENT: ${MEM_ALERT_PERCENT:-90}
+      DISK_ALERT_PERCENT: ${DISK_ALERT_PERCENT:-85}
+      BATTERY_ALERT_PERCENT: ${BATTERY_ALERT_PERCENT:-30}
+      PROACTIVE_TRIAGE_ENABLED: ${PROACTIVE_TRIAGE_ENABLED:-true}
+      # Uptime / SSL
+      UPTIME_CHECKS: ${UPTIME_CHECKS:-}
+      UPTIME_INTERVAL_SECONDS: ${UPTIME_INTERVAL_SECONDS:-60}
+      SSL_ALERT_DAYS: ${SSL_ALERT_DAYS:-14}
+      # History
+      HISTORY_ENABLED: ${HISTORY_ENABLED:-true}
+      HISTORY_INTERVAL_SECONDS: ${HISTORY_INTERVAL_SECONDS:-60}
+      # Server-side AI (digest + triage)
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      DIGEST_ENABLED: ${DIGEST_ENABLED:-false}
+      DIGEST_HOUR_UTC: ${DIGEST_HOUR_UTC:-8}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  rased-ui:
+    image: nginx:alpine
+    container_name: rased-ui
+    restart: unless-stopped
+    ports:
+      - "${RASED_UI_PORT:-8082}:80"
+    volumes:
+      - ./frontend/build/web:/usr/share/nginx/html:ro
+    depends_on:
+      - rased-api
+
+volumes:
+  rased-data:

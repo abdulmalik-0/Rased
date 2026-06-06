@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/providers.dart';
@@ -34,24 +33,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _loading = true;
       _error = null;
     });
-    final auth = ref.read(supabaseClientProvider).auth;
+    final auth = ref.read(authProvider.notifier);
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     try {
       if (_isSignUp) {
-        await auth.signUp(email: email, password: password);
-        // With email auto-confirm enabled, a session is returned immediately.
-        if (auth.currentSession == null) {
-          await auth.signInWithPassword(email: email, password: password);
+        final pending = await auth.register(email, password);
+        if (pending && mounted) {
+          setState(() {
+            _error = context.tr('pendingApproval');
+            _isSignUp = false;
+          });
         }
       } else {
-        await auth.signInWithPassword(email: email, password: password);
+        await auth.login(email, password);
       }
-      // The auth state stream drives navigation (AuthGate).
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      // authProvider state drives navigation (AuthGate).
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

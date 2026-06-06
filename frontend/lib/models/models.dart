@@ -8,6 +8,7 @@ class ContainerMetrics {
   final double memoryLimitMb;
   final double memoryPercent;
   final int restartCount;
+  final List<String> ports;
 
   const ContainerMetrics({
     required this.id,
@@ -19,6 +20,7 @@ class ContainerMetrics {
     required this.memoryLimitMb,
     required this.memoryPercent,
     this.restartCount = 0,
+    this.ports = const [],
   });
 
   factory ContainerMetrics.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,9 @@ class ContainerMetrics {
       memoryLimitMb: (json['memory_limit_mb'] as num?)?.toDouble() ?? 0,
       memoryPercent: (json['memory_percent'] as num?)?.toDouble() ?? 0,
       restartCount: (json['restart_count'] as num?)?.toInt() ?? 0,
+      ports: (json['ports'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 
@@ -61,6 +66,22 @@ class DiskUsage {
   }
 }
 
+class Temp {
+  final String label;
+  final double current;
+  final double? high;
+
+  const Temp({required this.label, required this.current, this.high});
+
+  factory Temp.fromJson(Map<String, dynamic> json) {
+    return Temp(
+      label: json['label'] as String? ?? '',
+      current: (json['current'] as num?)?.toDouble() ?? 0,
+      high: (json['high'] as num?)?.toDouble(),
+    );
+  }
+}
+
 class HostStats {
   final bool available;
   final double cpuPercent;
@@ -69,6 +90,7 @@ class HostStats {
   final double memoryTotalMb;
   final double memoryPercent;
   final List<DiskUsage> disks;
+  final List<Temp> temperatures;
   final double? loadAvg1m;
   final double? uptimeSeconds;
   final String? error;
@@ -81,6 +103,7 @@ class HostStats {
     this.memoryTotalMb = 0,
     this.memoryPercent = 0,
     this.disks = const [],
+    this.temperatures = const [],
     this.loadAvg1m,
     this.uptimeSeconds,
     this.error,
@@ -96,6 +119,9 @@ class HostStats {
       memoryPercent: (json['memory_percent'] as num?)?.toDouble() ?? 0,
       disks: (json['disks'] as List<dynamic>? ?? [])
           .map((d) => DiskUsage.fromJson(d as Map<String, dynamic>))
+          .toList(),
+      temperatures: (json['temperatures'] as List<dynamic>? ?? [])
+          .map((t) => Temp.fromJson(t as Map<String, dynamic>))
           .toList(),
       loadAvg1m: (json['load_avg_1m'] as num?)?.toDouble(),
       uptimeSeconds: (json['uptime_seconds'] as num?)?.toDouble(),
@@ -310,33 +336,60 @@ class AskResult {
   }
 }
 
-/// A monitored machine/agent (from Supabase `devices`).
+/// Authenticated session (JWT issued by the backend).
+class AuthSession {
+  final String token;
+  final String email;
+  final String role;
+
+  const AuthSession({
+    required this.token,
+    required this.email,
+    required this.role,
+  });
+
+  bool get isAdmin => role == 'admin';
+}
+
+/// A monitored machine/agent (from the backend `devices` table).
 class Device {
   final String hostId;
   final String hostName;
+  final String displayName;
   final String apiUrl;
+  final String nutHost;
+  final String nutUpsName;
   final DateTime? lastSeen;
 
   const Device({
     required this.hostId,
     required this.hostName,
+    this.displayName = '',
     required this.apiUrl,
+    this.nutHost = '',
+    this.nutUpsName = '',
     this.lastSeen,
   });
 
+  /// Admin display override falls back to the agent-reported name.
+  String get name => displayName.isNotEmpty ? displayName : hostName;
+
   factory Device.fromJson(Map<String, dynamic> json) {
     final id = json['host_id'] as String? ?? '';
-    final name = json['host_name'] as String? ?? '';
+    final hn = json['host_name'] as String? ?? '';
     return Device(
       hostId: id,
-      hostName: name.isNotEmpty ? name : id,
+      hostName: hn.isNotEmpty ? hn : id,
+      displayName: json['display_name'] as String? ?? '',
       apiUrl: json['api_url'] as String? ?? '',
+      nutHost: json['nut_host'] as String? ?? '',
+      nutUpsName: json['nut_ups_name'] as String? ?? '',
       lastSeen: DateTime.tryParse(json['last_seen'] as String? ?? '')?.toLocal(),
     );
   }
 }
 
-/// A single point of historical metrics (from Supabase `metrics_history`).
+/// A single point of historical metrics (from the backend `metrics_history` table).
 class HistoryPoint {
   final DateTime ts;
   final double? hostCpu;

@@ -48,7 +48,7 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
     });
 
     try {
-      final result = await ref.read(backendServiceProvider).analyzeLogs(
+      final result = await ref.read(apiProvider).analyzeLogs(
             containerId: widget.container.id,
             aiConfig: settings,
             baseUrl: widget.apiUrl,
@@ -70,20 +70,15 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
   }
 
   Future<void> _saveAnalysis(AnalyzeResult result) async {
-    final client = ref.read(supabaseClientProvider);
-    final uid = client.auth.currentUser?.id;
-    if (uid == null) return;
     try {
-      await client.from('ai_chats').insert({
-        'user_id': uid,
-        'host_id': widget.hostId,
-        'title': '🔍 ${widget.container.name}',
-        'messages': [
+      await ref.read(apiProvider).upsertChat(
+        hostId: widget.hostId,
+        title: '🔍 ${widget.container.name}',
+        messages: [
           {'role': 'user', 'content': 'Analyze logs: ${widget.container.name}'},
           {'role': 'assistant', 'content': result.analysis},
         ],
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      );
       if (mounted) setState(() => _saved = true);
     } catch (_) {}
   }
@@ -213,6 +208,7 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
     return SingleChildScrollView(
       child: MarkdownBody(
         data: _result!.analysis,
+        selectable: true,
         styleSheet: MarkdownStyleSheet(
           p: TextStyle(color: colors.textPrimary, height: 1.5),
           code: TextStyle(

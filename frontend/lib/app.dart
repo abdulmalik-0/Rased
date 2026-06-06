@@ -40,7 +40,7 @@ class _AuthGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionProvider);
+    final session = ref.watch(authProvider);
     return session == null ? const LoginScreen() : const DashboardScreen();
   }
 }

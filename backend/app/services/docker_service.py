@@ -84,6 +84,16 @@ class DockerService:
                         logger.warning("Stats unavailable for %s: %s", container.id, exc)
 
                 tags = container.image.tags if container.image else []
+                ports: list[str] = []
+                try:
+                    for _cport, bindings in (container.ports or {}).items():
+                        for b in bindings or []:
+                            hp = b.get("HostPort")
+                            if hp and hp not in ports:
+                                ports.append(hp)
+                except (AttributeError, TypeError):
+                    pass
+
                 containers.append(
                     ContainerMetrics(
                         id=container.id[:12],
@@ -95,6 +105,7 @@ class DockerService:
                         memory_limit_mb=mem_limit,
                         memory_percent=mem_percent,
                         restart_count=int(container.attrs.get("RestartCount", 0) or 0),
+                        ports=sorted(ports, key=lambda x: int(x) if x.isdigit() else 0),
                     )
                 )
         except DockerException as exc:

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
+import '../utils/launch.dart';
 import 'metric_chart.dart';
 
 class ContainerCard extends StatelessWidget {
@@ -12,6 +14,9 @@ class ContainerCard extends StatelessWidget {
   final VoidCallback onAnalyze;
   final void Function(String action) onAction;
   final bool isAdmin;
+  final String apiUrl;
+  final Map<String, String>? customLink;
+  final VoidCallback? onEditLink;
 
   const ContainerCard({
     super.key,
@@ -21,7 +26,13 @@ class ContainerCard extends StatelessWidget {
     required this.onAnalyze,
     required this.onAction,
     this.isAdmin = false,
+    this.apiUrl = '',
+    this.customLink,
+    this.onEditLink,
   });
+
+  bool get _hasCustomLink =>
+      customLink != null && (customLink!['url'] ?? '').isNotEmpty;
 
   Color _statusColor(RasedColors c) {
     switch (container.status) {
@@ -61,14 +72,17 @@ class ContainerCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    container.name,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
+                  child: Tooltip(
+                    message: container.name,
+                    child: Text(
+                      container.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(
@@ -95,6 +109,27 @@ class ContainerCard extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
+            if (container.ports.isNotEmpty || _hasCustomLink || isAdmin) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (_hasCustomLink) _customLinkChip(context, colors),
+                  for (final p in container.ports) _portChip(context, colors, p),
+                  if (isAdmin)
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      avatar: Icon(Icons.edit,
+                          size: 14, color: colors.textSecondary),
+                      label: Text(context.tr('editLink'),
+                          style: const TextStyle(fontSize: 11)),
+                      onPressed: onEditLink,
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             if (container.isRunning) ...[
               Wrap(
@@ -145,8 +180,25 @@ class ContainerCard extends StatelessWidget {
     return PopupMenuButton<String>(
       tooltip: context.tr('actions'),
       icon: Icon(Icons.more_vert, color: colors.textSecondary, size: 20),
-      onSelected: onAction,
+      onSelected: (value) {
+        if (value == 'copy') {
+          Clipboard.setData(ClipboardData(text: container.name));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.tr('copied'))),
+          );
+        } else {
+          onAction(value);
+        }
+      },
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'copy',
+          child: Row(children: [
+            const Icon(Icons.copy, size: 18),
+            const SizedBox(width: 8),
+            Text(context.tr('copyName')),
+          ]),
+        ),
         PopupMenuItem(
           value: 'logs',
           child: Row(children: [
@@ -183,6 +235,32 @@ class ContainerCard extends StatelessWidget {
             ]),
           ),
       ],
+    );
+  }
+
+  Widget _customLinkChip(BuildContext context, RasedColors colors) {
+    final url = customLink!['url'] ?? '';
+    final label = (customLink!['label'] ?? '').isNotEmpty
+        ? customLink!['label']!
+        : url;
+    return ActionChip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      avatar: Icon(Icons.link, size: 14, color: colors.accent),
+      label: Text(label, style: TextStyle(fontSize: 11, color: colors.accent)),
+      onPressed: () => openExternal(context, url),
+    );
+  }
+
+  Widget _portChip(BuildContext context, RasedColors colors, String port) {
+    final host = Uri.tryParse(apiUrl)?.host ?? '';
+    return ActionChip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      avatar: Icon(Icons.open_in_new, size: 14, color: colors.primary),
+      label: Text(':$port', style: const TextStyle(fontSize: 11)),
+      onPressed:
+          host.isEmpty ? null : () => openExternal(context, 'http://$host:$port'),
     );
   }
 

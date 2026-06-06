@@ -69,7 +69,10 @@ async def _chat_openai(
         response = await client.post(
             f"{base_url}/chat/completions", headers=headers, json=payload
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise ValueError(
+                f"AI provider {response.status_code}: {response.text[:400]}"
+            )
         data = response.json()
 
     try:
@@ -107,7 +110,10 @@ async def _chat_anthropic(
         response = await client.post(
             f"{base_url}/v1/messages", headers=headers, json=payload
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise ValueError(
+                f"AI provider {response.status_code}: {response.text[:400]}"
+            )
         data = response.json()
 
     try:

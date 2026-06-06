@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import db
 from app.config import settings
-from app.models.schemas import Alert, HostStats, MetricsPayload, UptimeResult
-from app.routers import actions, analyze, ask, logs
-from app.services.alert_service import alert_service
+from app.models.schemas import HostStats, MetricsPayload
+from app.routers import actions, analyze, ask, auth, data, ingest, logs, setup, ws
 from app.services.collector import build_payload, collector_loop
 from app.services.host_service import host_service
-from app.services.uptime_service import uptime_service
+from app.services.realtime import realtime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,11 +19,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.is_central:
+        await db.init_db()
     task = asyncio.create_task(collector_loop())
     logger.info(
-        "Metrics collector started (interval=%ss, host=%s)",
-        settings.metrics_interval_seconds,
+        "Rased agent started (host=%s, central=%s)",
         settings.host_name,
+        settings.is_central,
     )
     yield
     task.cancel()
@@ -31,22 +33,24 @@ async def lifespan(app: FastAPI):
         await task
     except asyncio.CancelledError:
         pass
+    if settings.is_central:
+        await db.close_db()
 
 
 app = FastAPI(
-    title="Rased — AI Server Dashboard Agent",
-    description="Docker + host metrics collector, log fetcher, AI log analyzer, "
-    "alerting, uptime checks, and history.",
-    version="2.0.0",
+    title="Rased — Server Dashboard Agent",
+    description="Docker + host metrics, AI log analysis, auth, realtime, history "
+    "(SQLite, no external DB).",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
-# CORS: never silently fall back to a wildcard. If unset, keep a safe localhost
-# default and warn so misconfiguration is visible in production.
-allowed_origins = settings.cors_origin_list
-if not allowed_origins:
-    allowed_origins = ["http://localhost:8082", "http://127.0.0.1:8082"]
-    logger.warning("CORS_ORIGINS not set; defaulting to localhost only: %s", allowed_origins)
+allowed_origins = settings.cors_origin_list or [
+    "http://localhost:8082",
+    "http://127.0.0.1:8082",
+]
+if not settings.cors_origin_list:
+    logger.warning("CORS_ORIGINS not set; defaulting to localhost only")
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,10 +60,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Every node exposes these (verified via shared JWT secret).
 app.include_router(logs.router)
 app.include_router(analyze.router)
 app.include_router(actions.router)
 app.include_router(ask.router)
+
+# Central node owns auth, data, ingest, setup and the realtime WebSocket.
+if settings.is_central:
+    app.include_router(auth.router)
+    app.include_router(data.router)
+    app.include_router(ingest.router)
+    app.include_router(setup.router)
+    app.include_router(ws.router)
 
 
 @app.get("/health")
@@ -68,12 +81,12 @@ async def health() -> dict:
         "status": "ok",
         "host_id": settings.host_id,
         "host_name": settings.host_name,
+        "central": settings.is_central,
     }
 
 
 @app.get("/metrics", response_model=MetricsPayload)
 async def get_current_metrics() -> MetricsPayload:
-    """Fallback REST endpoint when Realtime is unavailable."""
     return await build_payload()
 
 
@@ -82,13 +95,9 @@ async def get_host() -> HostStats:
     return host_service.get_stats()
 
 
-@app.get("/uptime", response_model=list[UptimeResult])
-async def get_uptime() -> list[UptimeResult]:
-    if not uptime_service.latest and settings.uptime_targets:
-        await uptime_service.refresh()
-    return uptime_service.latest
-
-
-@app.get("/alerts", response_model=list[Alert])
-async def get_alerts() -> list[Alert]:
-    return alert_service.recent[-50:]
+@app.get("/metrics/all", response_model=list[MetricsPayload])
+async def get_all_metrics() -> list[MetricsPayload]:
+    """All hosts (central): from the realtime cache. Remote: just itself."""
+    if settings.is_central:
+        return list(realtime.latest.values())
+    return [await build_payload()]

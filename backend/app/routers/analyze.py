@@ -1,15 +1,18 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from docker.errors import DockerException, NotFound
 
 from app.models.schemas import AnalyzeRequest, AnalyzeResponse
 from app.services.ai_router import analyze_logs
+from app.services.auth import require_user
 from app.services.docker_service import docker_service
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 
 @router.post("", response_model=AnalyzeResponse)
-async def analyze_container_logs(request: AnalyzeRequest) -> AnalyzeResponse:
+async def analyze_container_logs(
+    request: AnalyzeRequest, _: dict = Depends(require_user)
+) -> AnalyzeResponse:
     if not request.ai_config.base_url or not request.ai_config.model_name:
         raise HTTPException(
             status_code=400,

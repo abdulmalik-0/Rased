@@ -1,7 +1,7 @@
 import logging
 import os
 
-from app.models.schemas import DiskUsage, HostStats
+from app.models.schemas import DiskUsage, HostStats, Temp
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,24 @@ class HostService:
             except Exception:  # pragma: no cover
                 pass
 
+            temps: list[Temp] = []
+            try:
+                sensors = psutil.sensors_temperatures()  # Linux only
+                for chip, entries in sensors.items():
+                    for e in entries:
+                        if e.current is None:
+                            continue
+                        label = e.label or chip
+                        temps.append(
+                            Temp(
+                                label=label,
+                                current=round(e.current, 1),
+                                high=round(e.high, 1) if e.high else None,
+                            )
+                        )
+            except (AttributeError, OSError, NotImplementedError):
+                pass  # not available (Windows / no sensors / inside container)
+
             return HostStats(
                 available=True,
                 cpu_percent=round(cpu, 1),
@@ -86,6 +104,7 @@ class HostService:
                 memory_total_mb=round(vm.total / (1024**2), 1),
                 memory_percent=round(vm.percent, 1),
                 disks=disks,
+                temperatures=temps,
                 load_avg_1m=load_1m,
                 uptime_seconds=uptime,
             )

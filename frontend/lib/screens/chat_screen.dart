@@ -40,16 +40,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _loadChats() async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      final rows = await client
-          .from('ai_chats')
-          .select('id,title,messages,updated_at')
-          .eq('host_id', widget.hostId)
-          .order('updated_at', ascending: false);
-      if (mounted) {
-        setState(() => _chats = (rows as List).cast<Map<String, dynamic>>());
-      }
+      final rows = await ref.read(apiProvider).getChats(widget.hostId);
+      if (mounted) setState(() => _chats = rows);
     } catch (_) {}
   }
 
@@ -76,41 +69,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _deleteChat(String id) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client.from('ai_chats').delete().eq('id', id);
+      await ref.read(apiProvider).deleteChat(id);
       if (id == _currentId) _newChat();
       await _loadChats();
     } catch (_) {}
   }
 
   Future<void> _persist() async {
-    final client = ref.read(supabaseClientProvider);
-    final uid = client.auth.currentUser?.id;
-    if (uid == null) return;
     final firstUser = _messages.firstWhere(
       (m) => m['role'] == 'user',
       orElse: () => {'content': 'Chat'},
     )['content']!;
     final title = firstUser.length > 40 ? firstUser.substring(0, 40) : firstUser;
-    final now = DateTime.now().toUtc().toIso8601String();
     try {
-      if (_currentId == null) {
-        final row = await client.from('ai_chats').insert({
-          'user_id': uid,
-          'host_id': widget.hostId,
-          'title': title,
-          'messages': _messages,
-          'updated_at': now,
-        }).select('id').single();
-        _currentId = row['id'] as String?;
-      } else {
-        await client.from('ai_chats').update({
-          'title': title,
-          'messages': _messages,
-          'updated_at': now,
-        }).eq('id', _currentId!);
-      }
+      final id = await ref.read(apiProvider).upsertChat(
+            id: _currentId,
+            hostId: widget.hostId,
+            title: title,
+            messages: _messages,
+          );
+      _currentId = id;
       await _loadChats();
     } catch (_) {}
   }
@@ -138,7 +117,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scrollToBottom();
 
     try {
-      final res = await ref.read(backendServiceProvider).ask(
+      final res = await ref.read(apiProvider).ask(
             question: q,
             aiConfig: settings,
             history: history,
@@ -309,6 +288,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 style: TextStyle(color: colors.textPrimary))
             : MarkdownBody(
                 data: m['content'] ?? '',
+                selectable: true,
                 styleSheet: MarkdownStyleSheet(
                   p: TextStyle(color: colors.textPrimary, height: 1.5),
                   code: TextStyle(
