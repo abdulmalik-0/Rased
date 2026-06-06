@@ -166,7 +166,7 @@ class AppLocalizations {
       'addDeviceStep2':
           'On the new machine — run this (change the id / name if you like):',
       'addDeviceTip':
-          'Docker is required on the machine. Secrets are hidden — Copy still copies the real command.',
+          'The command auto-installs git & Docker if missing. Use the Copy button (it copies the real command, not the masked one).',
       'agentHostId': 'Host ID (unique)',
       'agentSshUser': 'SSH user',
       'agentNewIp': 'New machine IP',
@@ -348,7 +348,7 @@ class AppLocalizations {
       'addDeviceStep2':
           'على الجهاز الجديد — نفّذ هذا (غيّر المعرّف/الاسم إن أحببت):',
       'addDeviceTip':
-          'يجب وجود Docker على الجهاز. المفاتيح مُخفاة — والنسخ يأخذ الأمر الحقيقي كاملاً.',
+          'الأمر يثبّت git وDocker تلقائياً إن لم يكونا موجودين. استخدم زر النسخ (يأخذ الأمر الحقيقي لا المغبّش).',
       'agentHostId': 'معرّف فريد للجهاز',
       'agentSshUser': 'مستخدم SSH',
       'agentNewIp': 'IP الجهاز الجديد',

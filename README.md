@@ -108,8 +108,8 @@ curl -fsSL https://raw.githubusercontent.com/abdulmalik-0/Rased/main/scripts/boo
                --id lxc-2 --name "LXC 2"
 sudo ufw allow 8002/tcp  # so the dashboard can manage this agent
 ```
-Docker is required on the machine. Prefer not to pipe to bash? `git clone` the repo then
-run `bash scripts/install-agent.sh` with the same flags.
+It auto-installs git & Docker if missing (run as root or with sudo). Prefer not to pipe to
+bash? `git clone` the repo then run `bash scripts/install-agent.sh` with the same flags.
 It appears as a new tab within seconds. `AGENT_TOKEN` and `JWT_SECRET` **must match**
 the central values (the Add-device screen fills them for you). `.env.agent` holds
 secrets and is gitignored.

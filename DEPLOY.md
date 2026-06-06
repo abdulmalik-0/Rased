@@ -38,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/abdulmalik-0/Rased/main/scripts/boo
   | bash -s -- --central http://CENTRAL_IP:8002 --token <AGENT_TOKEN> --jwt <JWT_SECRET> \
                --id lxc-2 --name "LXC 2"
 ```
-يظهر كتبويب جديد خلال ثوانٍ. يتطلّب الجهاز **Docker** مسبقاً. (`.env` والأسرار مستثناة من Git — آمن.)
+يظهر كتبويب جديد خلال ثوانٍ. الأمر **يثبّت git وDocker تلقائياً** إن لزم (شغّله كـ root أو عبر sudo). (`.env` والأسرار مستثناة من Git — آمن.)
 
 ## التحديث لاحقاً
 انقل `backend` + `frontend/build/web` + `scripts` + `docker-compose*.yml`، ثم:
