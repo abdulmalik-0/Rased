@@ -159,13 +159,14 @@ class AppLocalizations {
       'addDevice': 'Add device',
       'addDeviceTitle': 'Add a machine (agent)',
       'addDeviceIntro':
-          'Add another machine (LXC / server) as its own tab. The secrets below are filled in for you — just copy and run.',
+          'Add another Linux machine as its own tab. Run one command on it — it downloads Rased from GitHub and starts the agent.',
+      'addDeviceRun': 'Run this one command on the new Linux machine:',
       'addDeviceStep1':
           'On the central machine — copy the Rased folder to the new machine:',
       'addDeviceStep2':
           'On the new machine — run this (change the id / name if you like):',
       'addDeviceTip':
-          'Edit the fields above, then copy. The secrets are hidden — Copy still copies the real values.',
+          'Docker is required on the machine. Secrets are hidden — Copy still copies the real command.',
       'agentHostId': 'Host ID (unique)',
       'agentSshUser': 'SSH user',
       'agentNewIp': 'New machine IP',
@@ -337,13 +338,14 @@ class AppLocalizations {
       'addDevice': 'إضافة جهاز',
       'addDeviceTitle': 'إضافة جهاز (وكيل)',
       'addDeviceIntro':
-          'أضِف جهازاً آخر (LXC / خادم) كتبويب مستقل. المفاتيح أدناه معبّأة لك — فقط انسخ ونفّذ.',
+          'أضِف جهاز لينكس آخر كتبويب مستقل. نفّذ عليه أمراً واحداً — يحمّل Rased من GitHub ويشغّل الوكيل.',
+      'addDeviceRun': 'نفّذ هذا الأمر الواحد على الجهاز الجديد (لينكس):',
       'addDeviceStep1':
           'على الجهاز المركزي — انسخ مجلد Rased إلى الجهاز الجديد:',
       'addDeviceStep2':
           'على الجهاز الجديد — نفّذ هذا (غيّر المعرّف/الاسم إن أحببت):',
       'addDeviceTip':
-          'عدّل الحقول بالأعلى ثم انسخ. المفاتيح مُخفاة — والنسخ نفسه يأخذ القيم الحقيقية.',
+          'يجب وجود Docker على الجهاز. المفاتيح مُخفاة — والنسخ يأخذ الأمر الحقيقي كاملاً.',
       'agentHostId': 'معرّف فريد للجهاز',
       'agentSshUser': 'مستخدم SSH',
       'agentNewIp': 'IP الجهاز الجديد',

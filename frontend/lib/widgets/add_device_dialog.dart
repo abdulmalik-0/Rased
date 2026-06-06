@@ -6,9 +6,9 @@ import '../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
 
-/// Guided "add a Linux machine" dialog. Editable fields, two ways to get the
-/// code onto the new machine (Git clone or scp), and masked secrets (Copy
-/// still copies the real values).
+/// One-command "add a Linux machine" dialog. Builds a single curl bootstrap that
+/// downloads Rased from GitHub and starts the agent. Secrets are masked on
+/// screen; Copy copies the real command.
 class AddDeviceDialog extends ConsumerStatefulWidget {
   const AddDeviceDialog({super.key});
 
@@ -18,35 +18,39 @@ class AddDeviceDialog extends ConsumerStatefulWidget {
 
 class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
   static const _repoKey = 'agent_repo_url';
+  static const _defaultRepo = 'https://github.com/abdulmalik-0/Rased.git';
 
   final _hostId = TextEditingController(text: 'lxc-2');
   final _name = TextEditingController(text: 'LXC 2');
-  final _sshUser = TextEditingController(text: 'root');
-  final _machineIp = TextEditingController();
   late final TextEditingController _repoUrl;
-  bool _useGit = true;
   bool _reveal = false;
 
   @override
   void initState() {
     super.initState();
     final saved = ref.read(sharedPrefsProvider).getString(_repoKey);
-    _repoUrl = TextEditingController(
-        text: saved ?? 'https://github.com/abdulmalik-0/Rased.git');
+    _repoUrl = TextEditingController(text: saved ?? _defaultRepo);
   }
 
   @override
   void dispose() {
     _hostId.dispose();
     _name.dispose();
-    _sshUser.dispose();
-    _machineIp.dispose();
     _repoUrl.dispose();
     super.dispose();
   }
 
   String _mask(String s) =>
       s.length <= 6 ? '••••••' : '${s.substring(0, 4)}${'•' * 16}';
+
+  /// https://github.com/U/R(.git) -> raw bootstrap script URL.
+  String _rawBootstrap(String repo) {
+    var r = repo.trim();
+    if (r.endsWith('.git')) r = r.substring(0, r.length - 4);
+    if (r.endsWith('/')) r = r.substring(0, r.length - 1);
+    r = r.replaceFirst('github.com', 'raw.githubusercontent.com');
+    return '$r/main/scripts/bootstrap-agent.sh';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +64,7 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 700),
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 600),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -89,7 +93,7 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${context.tr('addDeviceIntro')}  ${context.tr('agentLinuxNote')}',
+                context.tr('addDeviceIntro'),
                 style: TextStyle(color: colors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -118,80 +122,45 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
 
     final id = _hostId.text.trim().isEmpty ? 'lxc-2' : _hostId.text.trim();
     final name = _name.text.trim().isEmpty ? 'LXC' : _name.text.trim();
-    final user = _sshUser.text.trim().isEmpty ? 'root' : _sshUser.text.trim();
-    final ip = _machineIp.text.trim().isEmpty
-        ? 'NEW_MACHINE_IP'
-        : _machineIp.text.trim();
-    final repo = _repoUrl.text.trim().isEmpty
-        ? 'https://github.com/abdulmalik-0/Rased.git'
-        : _repoUrl.text.trim();
+    final repo = _repoUrl.text.trim().isEmpty ? _defaultRepo : _repoUrl.text.trim();
+    final raw = _rawBootstrap(repo);
 
-    final getCmd = _useGit
-        ? 'git clone --depth 1 $repo ~/rased'
-        : 'scp -r ~/rased $user@$ip:~/';
-    final step1Label =
-        _useGit ? context.tr('addDeviceStep1Git') : context.tr('addDeviceStep1');
-
-    final realCmd = 'cd ~/rased && bash scripts/install-agent.sh '
-        '--central $central --token $token --jwt $jwt --id $id --name "$name"';
-    final shownCmd = 'cd ~/rased && bash scripts/install-agent.sh '
-        '--central $central --token ${_reveal ? token : _mask(token)} '
-        '--jwt ${_reveal ? jwt : _mask(jwt)} --id $id --name "$name"';
+    String cmd(String t, String j) => 'curl -fsSL $raw | bash -s -- '
+        '--central $central --token $t --jwt $j --id $id --name "$name"';
+    final realCmd = cmd(token, jwt);
+    final shownCmd =
+        _reveal ? realCmd : cmd(_mask(token), _mask(jwt));
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Identity
           Row(children: [
             Expanded(child: _field(colors, _hostId, context.tr('agentHostId'))),
             const SizedBox(width: 10),
             Expanded(child: _field(colors, _name, context.tr('displayName'))),
           ]),
-          const SizedBox(height: 12),
-
-          // How to get the code onto the new machine
-          Wrap(spacing: 8, children: [
-            ChoiceChip(
-              avatar: const Icon(Icons.cloud_download_outlined, size: 16),
-              label: Text(context.tr('methodGit')),
-              selected: _useGit,
-              onSelected: (_) => setState(() => _useGit = true),
+          const SizedBox(height: 10),
+          _field(colors, _repoUrl, context.tr('agentRepoUrl'),
+              hint: _defaultRepo, onChanged: (v) {
+            ref.read(sharedPrefsProvider).setString(_repoKey, v);
+          }),
+          const SizedBox(height: 16),
+          Row(children: [
+            CircleAvatar(
+              radius: 11,
+              backgroundColor: colors.primary,
+              child: const Icon(Icons.terminal, size: 13, color: Colors.white),
             ),
-            ChoiceChip(
-              avatar: const Icon(Icons.drive_file_move_outlined, size: 16),
-              label: Text(context.tr('methodScp')),
-              selected: !_useGit,
-              onSelected: (_) => setState(() => _useGit = false),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(context.tr('addDeviceRun'),
+                  style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600)),
             ),
           ]),
-          const SizedBox(height: 10),
-
-          if (_useGit) ...[
-            _field(colors, _repoUrl, context.tr('agentRepoUrl'),
-                hint: 'https://github.com/abdulmalik-0/Rased.git', onChanged: (v) {
-              ref.read(sharedPrefsProvider).setString(_repoKey, v);
-            }),
-            const SizedBox(height: 6),
-            Text(context.tr('agentGitNote'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 11)),
-          ] else
-            Row(children: [
-              Expanded(
-                  child: _field(colors, _sshUser, context.tr('agentSshUser'))),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _field(colors, _machineIp, context.tr('agentNewIp'),
-                      hint: '192.168.100.x')),
-            ]),
-          const SizedBox(height: 16),
-
-          _stepLabel(colors, '1', step1Label),
-          const SizedBox(height: 6),
-          _CmdBlock(colors: colors, shown: getCmd, copyText: getCmd),
-          const SizedBox(height: 16),
-
-          _stepLabel(colors, '2', context.tr('addDeviceStep2')),
           const SizedBox(height: 6),
           _CmdBlock(
             colors: colors,
@@ -231,49 +200,23 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
       ),
     );
   }
-
-  Widget _stepLabel(RasedColors colors, String n, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 11,
-          backgroundColor: colors.primary,
-          child: Text(n,
-              style: const TextStyle(
-                  fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(text,
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// Monospace command box. [shown] is displayed (may be masked); [copyText] is
-/// what actually gets copied. An optional eye toggles secret visibility.
+/// what actually gets copied. The eye toggles secret visibility.
 class _CmdBlock extends StatelessWidget {
   final RasedColors colors;
   final String shown;
   final String copyText;
-  final bool? revealed;
-  final VoidCallback? onToggle;
+  final bool revealed;
+  final VoidCallback onToggle;
 
   const _CmdBlock({
     required this.colors,
     required this.shown,
     required this.copyText,
-    this.revealed,
-    this.onToggle,
+    required this.revealed,
+    required this.onToggle,
   });
 
   @override
@@ -303,18 +246,14 @@ class _CmdBlock extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (onToggle != null)
-                TextButton.icon(
-                  onPressed: onToggle,
-                  icon: Icon(
-                      (revealed ?? false)
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      size: 16),
-                  label: Text((revealed ?? false)
-                      ? context.tr('hideSecrets')
-                      : context.tr('revealSecrets')),
-                ),
+              TextButton.icon(
+                onPressed: onToggle,
+                icon: Icon(revealed ? Icons.visibility_off : Icons.visibility,
+                    size: 16),
+                label: Text(revealed
+                    ? context.tr('hideSecrets')
+                    : context.tr('revealSecrets')),
+              ),
               TextButton.icon(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: copyText));

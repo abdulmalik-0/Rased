@@ -28,26 +28,17 @@ sudo ufw allow 8082/tcp && sudo ufw allow 8002/tcp   # عند الحاجة
 ٣) افتح `http://YOUR_IP:8082` ← **أنشئ حساباً** (أول حساب = admin) ← من زر المساعدة (؟)
 يوجد شرح كامل داخل الموقع، ومن الإعدادات تضبط مزوّد الـ AI.
 
-## إضافة جهاز (LXC آخر) — من داخل اللوحة
+## إضافة جهاز (LXC آخر) — أمر واحد
 
-١) في اللوحة اضغط زر **(+)** أعلى الشاشة. عدّل الحقول واختر طريقة إحضار الكود؛ المفاتيح
-معبّأة (ومغبّشة) والأوامر جاهزة للنسخ.
+١) في اللوحة اضغط زر **(+)**، عدّل المعرّف/الاسم، وانسخ الأمر (المفاتيح مغبّشة، والنسخ يأخذ الأمر الحقيقي).
 
-٢) أحضِر المشروع إلى الجهاز الجديد — إمّا **تنزيل من GitHub** (الأسهل، لا حاجة للنقل):
+٢) الصق الأمر الواحد على الجهاز الجديد (لينكس). يحمّل Rased من GitHub ويشغّل الوكيل بنفسه:
 ```bash
-git clone --depth 1 https://github.com/abdulmalik-0/Rased.git ~/rased
+curl -fsSL https://raw.githubusercontent.com/abdulmalik-0/Rased/main/scripts/bootstrap-agent.sh \
+  | bash -s -- --central http://CENTRAL_IP:8002 --token <AGENT_TOKEN> --jwt <JWT_SECRET> \
+               --id lxc-2 --name "LXC 2"
 ```
-أو **نسخ من الجهاز المركزي**:
-```bash
-scp -r ~/rased USER@NEW_MACHINE_IP:~/
-```
-
-٣) على الجهاز الجديد نفّذ المثبّت (المفاتيح معبّأة، والـ IP يُكتشف تلقائياً):
-```bash
-cd ~/rased && bash scripts/install-agent.sh --central http://CENTRAL_IP:8002 \
-  --token <AGENT_TOKEN> --jwt <JWT_SECRET> --id lxc-2 --name "LXC 2"
-```
-يظهر الجهاز كتبويب جديد تلقائياً خلال ثوانٍ. ملاحظة: `.env` والأسرار مستثناة من Git (آمنة).
+يظهر كتبويب جديد خلال ثوانٍ. يتطلّب الجهاز **Docker** مسبقاً. (`.env` والأسرار مستثناة من Git — آمن.)
 
 ## التحديث لاحقاً
 انقل `backend` + `frontend/build/web` + `scripts` + `docker-compose*.yml`، ثم:

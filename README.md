@@ -51,7 +51,7 @@ database: the agent uses **SQLite**, so the whole stack is just two containers
 ```
 backend/   FastAPI agent (Python) — app/db.py (SQLite), services/, routers/
 frontend/  Flutter (Web) — lib/{services/api_service.dart, providers, screens, widgets}
-scripts/   install.sh (central), install-agent.sh (extra machine), up.sh, deploy-to-server.sh
+scripts/   install.sh (central), bootstrap-agent.sh + install-agent.sh (extra machine), up.sh
 docker-compose.yml        central: rased-api + rased-ui (+ sqlite volume)
 docker-compose.agent.yml  extra machine: agent only
 ```
@@ -99,18 +99,17 @@ The in-app **Help (?)** button explains everything; **Settings → AI Provider**
 
 ## Adding more machines (multi-device tabs)
 
-**Easiest:** in the dashboard press **(+) Add device** — it shows ready commands with
-the real secrets already filled in, so you just copy and run.
-
-Manual route — get the code on the new machine (Git clone is easiest, no transfer
-needed), then run the installer (it auto-detects the machine IP and writes
-`.env.agent` for you):
+**One command.** In the dashboard press **(+) Add device**, tweak the id/name, and copy
+the command (secrets are masked; Copy copies the real one). On the new Linux machine
+just paste it — it downloads Rased from GitHub and starts the agent itself:
 ```bash
-git clone --depth 1 https://github.com/abdulmalik-0/Rased.git ~/rased   # or: scp -r ~/rased USER@NEW_IP:~/
-cd ~/rased && bash scripts/install-agent.sh --central http://CENTRAL_IP:8002 \
-  --token <AGENT_TOKEN> --jwt <JWT_SECRET> --id lxc-2 --name "LXC 2"
+curl -fsSL https://raw.githubusercontent.com/abdulmalik-0/Rased/main/scripts/bootstrap-agent.sh \
+  | bash -s -- --central http://CENTRAL_IP:8002 --token <AGENT_TOKEN> --jwt <JWT_SECRET> \
+               --id lxc-2 --name "LXC 2"
 sudo ufw allow 8002/tcp  # so the dashboard can manage this agent
 ```
+Docker is required on the machine. Prefer not to pipe to bash? `git clone` the repo then
+run `bash scripts/install-agent.sh` with the same flags.
 It appears as a new tab within seconds. `AGENT_TOKEN` and `JWT_SECRET` **must match**
 the central values (the Add-device screen fills them for you). `.env.agent` holds
 secrets and is gitignored.
