@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import 'metric_chart.dart';
@@ -9,6 +10,8 @@ class ContainerCard extends StatelessWidget {
   final List<double> cpuHistory;
   final List<double> memoryHistory;
   final VoidCallback onAnalyze;
+  final void Function(String action) onAction;
+  final bool isAdmin;
 
   const ContainerCard({
     super.key,
@@ -16,28 +19,34 @@ class ContainerCard extends StatelessWidget {
     required this.cpuHistory,
     required this.memoryHistory,
     required this.onAnalyze,
+    required this.onAction,
+    this.isAdmin = false,
   });
 
-  Color get _statusColor {
+  Color _statusColor(RasedColors c) {
     switch (container.status) {
       case 'running':
-        return AppTheme.accent;
+        return c.accent;
       case 'paused':
-        return AppTheme.warning;
+        return c.warning;
       case 'exited':
       case 'dead':
-        return AppTheme.danger;
+        return c.danger;
       default:
-        return AppTheme.textSecondary;
+        return c.textSecondary;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final statusColor = _statusColor(colors);
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -46,7 +55,7 @@ class ContainerCard extends StatelessWidget {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: _statusColor,
+                    color: statusColor,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -54,10 +63,10 @@ class ContainerCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     container.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -65,7 +74,7 @@ class ContainerCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _statusColor.withValues(alpha: 0.15),
+                    color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -73,48 +82,56 @@ class ContainerCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: _statusColor,
+                      color: statusColor,
                     ),
                   ),
                 ),
+                _actionsMenu(context, colors),
               ],
             ),
             const SizedBox(height: 4),
             Text(
               container.image,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (container.isRunning) ...[
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  _statChip('CPU', '${container.cpuPercent.toStringAsFixed(1)}%'),
-                  const SizedBox(width: 8),
+                  _statChip(colors, context.tr('cpu'),
+                      '${container.cpuPercent.toStringAsFixed(1)}%'),
                   _statChip(
-                    'RAM',
-                    '${container.memoryUsageMb.toStringAsFixed(0)} / '
-                    '${container.memoryLimitMb.toStringAsFixed(0)} MB',
+                    colors,
+                    context.tr('ram'),
+                    '${container.memoryPercent.toStringAsFixed(0)}% · '
+                        '${container.memoryUsageMb.toStringAsFixed(0)} / '
+                        '${container.memoryLimitMb.toStringAsFixed(0)} MB',
                   ),
+                  if (container.restartCount > 0)
+                    _statChip(colors, context.tr('restarts'),
+                        '${container.restartCount}'),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               MetricChart(
                 cpuData: cpuHistory,
                 memoryData: memoryHistory,
-                title: 'Live Usage',
+                title: context.tr('liveUsage'),
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: onAnalyze,
                 icon: const Icon(Icons.auto_awesome, size: 18),
-                label: const Text('Analyze Logs'),
+                label: Text(context.tr('analyzeLogs')),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primary,
-                  side: const BorderSide(color: AppTheme.primary),
+                  foregroundColor: colors.primary,
+                  side: BorderSide(color: colors.primary),
                 ),
               ),
             ),
@@ -124,16 +141,61 @@ class ContainerCard extends StatelessWidget {
     );
   }
 
-  Widget _statChip(String label, String value) {
+  Widget _actionsMenu(BuildContext context, RasedColors colors) {
+    return PopupMenuButton<String>(
+      tooltip: context.tr('actions'),
+      icon: Icon(Icons.more_vert, color: colors.textSecondary, size: 20),
+      onSelected: onAction,
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'logs',
+          child: Row(children: [
+            const Icon(Icons.terminal, size: 18),
+            const SizedBox(width: 8),
+            Text(context.tr('viewLogs')),
+          ]),
+        ),
+        if (isAdmin)
+          PopupMenuItem(
+            value: 'restart',
+            child: Row(children: [
+              const Icon(Icons.restart_alt, size: 18),
+              const SizedBox(width: 8),
+              Text(context.tr('restart')),
+            ]),
+          ),
+        if (isAdmin && container.isRunning)
+          PopupMenuItem(
+            value: 'stop',
+            child: Row(children: [
+              const Icon(Icons.stop_circle_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(context.tr('stop')),
+            ]),
+          ),
+        if (isAdmin && !container.isRunning)
+          PopupMenuItem(
+            value: 'start',
+            child: Row(children: [
+              const Icon(Icons.play_circle_outline, size: 18),
+              const SizedBox(width: 8),
+              Text(context.tr('start')),
+            ]),
+          ),
+      ],
+    );
+  }
+
+  Widget _statChip(RasedColors colors, String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+        style: TextStyle(fontSize: 12, color: colors.textPrimary),
       ),
     );
   }

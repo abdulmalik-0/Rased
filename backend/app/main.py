@@ -6,11 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.models.schemas import MetricsPayload
-from app.routers import analyze, logs
-from app.services.broadcast import broadcast_service, metrics_collector_loop
-from app.services.docker_service import docker_service
-from app.services.nut_service import nut_service
+from app.models.schemas import Alert, HostStats, MetricsPayload, UptimeResult
+from app.routers import actions, analyze, ask, logs
+from app.services.alert_service import alert_service
+from app.services.collector import build_payload, collector_loop
+from app.services.host_service import host_service
+from app.services.uptime_service import uptime_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,17 +19,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(
-        metrics_collector_loop(
-            docker_service,
-            nut_service,
-            broadcast_service,
-            settings.metrics_interval_seconds,
-        )
-    )
+    task = asyncio.create_task(collector_loop())
     logger.info(
-        "Metrics collector started (interval=%ss)",
+        "Metrics collector started (interval=%ss, host=%s)",
         settings.metrics_interval_seconds,
+        settings.host_name,
     )
     yield
     task.cancel()
@@ -39,15 +34,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Server Dashboard Agent",
-    description="Docker metrics collector, log fetcher, and AI log analyzer",
-    version="1.0.0",
+    title="Rased — AI Server Dashboard Agent",
+    description="Docker + host metrics collector, log fetcher, AI log analyzer, "
+    "alerting, uptime checks, and history.",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
+# CORS: never silently fall back to a wildcard. If unset, keep a safe localhost
+# default and warn so misconfiguration is visible in production.
+allowed_origins = settings.cors_origin_list
+if not allowed_origins:
+    allowed_origins = ["http://localhost:8082", "http://127.0.0.1:8082"]
+    logger.warning("CORS_ORIGINS not set; defaulting to localhost only: %s", allowed_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list or ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,15 +58,37 @@ app.add_middleware(
 
 app.include_router(logs.router)
 app.include_router(analyze.router)
+app.include_router(actions.router)
+app.include_router(ask.router)
 
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "host_id": settings.host_id,
+        "host_name": settings.host_name,
+    }
 
 
 @app.get("/metrics", response_model=MetricsPayload)
 async def get_current_metrics() -> MetricsPayload:
     """Fallback REST endpoint when Realtime is unavailable."""
-    ups = nut_service.get_status()
-    return docker_service.collect_metrics(ups)
+    return await build_payload()
+
+
+@app.get("/host", response_model=HostStats)
+async def get_host() -> HostStats:
+    return host_service.get_stats()
+
+
+@app.get("/uptime", response_model=list[UptimeResult])
+async def get_uptime() -> list[UptimeResult]:
+    if not uptime_service.latest and settings.uptime_targets:
+        await uptime_service.refresh()
+    return uptime_service.latest
+
+
+@app.get("/alerts", response_model=list[Alert])
+async def get_alerts() -> list[Alert]:
+    return alert_service.recent[-50:]

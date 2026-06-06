@@ -26,6 +26,31 @@ class TestSanitization(unittest.TestCase):
         result = sanitize_text(text)
         self.assertIn("[REDACTED_TOKEN]", result)
 
+    def test_redacts_aws_access_key(self):
+        text = "aws id AKIAIOSFODNN7EXAMPLE in config"
+        result = sanitize_text(text)
+        self.assertIn("[REDACTED_TOKEN]", result)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", result)
+
+    def test_redacts_github_token(self):
+        text = "token ghp_1234567890abcdefghijklmnopqrstuvwxyz used"
+        result = sanitize_text(text)
+        self.assertIn("[REDACTED_TOKEN]", result)
+
+    def test_redacts_google_api_key(self):
+        text = "key AIzaSyA1234567890abcdefghijklmnopqrstuvw here"
+        result = sanitize_text(text)
+        self.assertIn("[REDACTED_TOKEN]", result)
+
+    def test_redacts_pem_header(self):
+        text = "-----BEGIN RSA PRIVATE KEY-----"
+        result = sanitize_text(text)
+        self.assertIn("[REDACTED_TOKEN]", result)
+
+    def test_keeps_normal_text(self):
+        text = "Container started successfully on port 8080"
+        self.assertEqual(sanitize_text(text), text)
+
 
 if __name__ == "__main__":
     unittest.main()

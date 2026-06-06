@@ -27,15 +27,16 @@
 
 ### 1) جلب ملفات Supabase الرسمية
 
-```powershell
-cd c:\Users\atamimi\program
-.\scripts\setup-supabase-docker.ps1
+```bash
+cd ~/rased                    # حيث نقلت المشروع على السيرفر
+chmod +x scripts/*.sh         # أول مرة فقط
+./scripts/setup-supabase-docker.sh
 ```
 
 ### 2) إنشاء `.env`
 
-```powershell
-copy .env.example .env
+```bash
+cp .env.example .env
 ```
 
 عدّل على الأقل:
@@ -47,31 +48,33 @@ copy .env.example .env
 - `SUPABASE_PUBLIC_URL` / `API_EXTERNAL_URL` — مثلاً `http://YOUR_IP:8003`
 - `SITE_URL` — مثلاً `http://YOUR_IP:8082`
 
-(اختياري) توليد مفاتيح جديدة:
+اختياري (ميزات 2.0):
 
-```bash
-cd supabase/docker && sh ./utils/generate-keys.sh
-```
+- `RASED_HOST_NAME` — الاسم الظاهر للخادم في اللوحة
+- `ALERT_WEBHOOK_URL` — وجّهه إلى webhook في n8n لتوزيع التنبيهات (Telegram/بريد…)
+- `UPTIME_CHECKS` — مثل `Portfolio|https://example.com, SearXNG|https://search.example.com`
+- `AI_BASE_URL` / `AI_MODEL` — لتفعيل التشخيص الاستباقي والملخّص اليومي بالذكاء
+- `DIGEST_ENABLED=true` + `DIGEST_HOUR_UTC` — للملخّص اليومي
 
-ثم انسخ `ANON_KEY` و `SERVICE_ROLE_KEY` إلى `.env` وإلى build الـ Flutter.
+(اختياري) توليد مفاتيح خاصة: القالب الرسمي قد لا يأتي بسكربت توليد، فولّد `ANON_KEY` و`SERVICE_ROLE_KEY` من `JWT_SECRET` عبر مولّد JWT في [توثيق Supabase self-hosting](https://supabase.com/docs/guides/self-hosting/docker)، ثم ضعهما في `.env` ومرّر `ANON_KEY` في build الـ Flutter. (إن غيّرت `JWT_SECRET` يلزم إعادة توليد المفتاحين وإعادة بناء الواجهة.)
 
 ### 3) بناء الواجهة
 
-```powershell
+```bash
 cd frontend
 flutter pub get
-flutter build web `
-  --dart-define=BACKEND_URL=http://YOUR_SERVER_IP:8002 `
-  --dart-define=SUPABASE_URL=http://YOUR_SERVER_IP:8003 `
+flutter build web \
+  --dart-define=BACKEND_URL=http://YOUR_SERVER_IP:8002 \
+  --dart-define=SUPABASE_URL=http://YOUR_SERVER_IP:8003 \
   --dart-define=SUPABASE_ANON_KEY=<ANON_KEY from .env>
 ```
 
 ### 4) تشغيل الحاويات
 
-```powershell
+```bash
 cd ..
-.\scripts\up.ps1
-.\scripts\run-migration.ps1
+./scripts/up.sh
+./scripts/run-migration.sh
 ```
 
 ### 5) تفعيل Anonymous Auth
@@ -98,7 +101,7 @@ ENABLE_ANONYMOUS_USERS=true
 
 ## أوامر مفيدة
 
-```powershell
+```bash
 docker compose ps
 docker compose logs -f rased-api
 docker compose logs -f kong
@@ -109,9 +112,10 @@ docker compose down
 
 ## تطوير محلي بدون Docker (API فقط)
 
-```powershell
+```bash
 cd backend
-copy .env.example .env
+cp .env.example .env
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
 ```

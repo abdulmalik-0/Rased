@@ -1,12 +1,13 @@
 import logging
-from datetime import datetime, timezone
 
 import docker
 from docker.errors import DockerException
 
-from app.models.schemas import ContainerMetrics, MetricsPayload, UpsStatus
+from app.models.schemas import ContainerMetrics
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_ACTIONS = ("restart", "stop", "start")
 
 
 class DockerService:
@@ -24,6 +25,15 @@ class DockerService:
         raw = container.logs(tail=tail, timestamps=True)
         text = raw.decode("utf-8", errors="replace")
         return [line for line in text.splitlines() if line.strip()]
+
+    def container_action(self, container_id: str, action: str) -> str:
+        """Perform a lifecycle action (restart/stop/start) on a container."""
+        if action not in ALLOWED_ACTIONS:
+            raise ValueError(f"Unsupported action '{action}'")
+        container = self.client.containers.get(container_id)
+        getattr(container, action)()
+        container.reload()
+        return container.status
 
     def _calc_cpu_percent(self, stats: dict) -> float:
         try:
@@ -56,7 +66,7 @@ class DockerService:
         except (KeyError, TypeError, ZeroDivisionError):
             return 0.0, 0.0, 0.0
 
-    def collect_metrics(self, ups: UpsStatus) -> MetricsPayload:
+    def list_container_metrics(self) -> list[ContainerMetrics]:
         containers: list[ContainerMetrics] = []
         try:
             for container in self.client.containers.list(all=True):
@@ -73,26 +83,24 @@ class DockerService:
                     except DockerException as exc:
                         logger.warning("Stats unavailable for %s: %s", container.id, exc)
 
+                tags = container.image.tags if container.image else []
                 containers.append(
                     ContainerMetrics(
                         id=container.id[:12],
                         name=container.name.lstrip("/"),
                         status=container.status,
-                        image=container.image.tags[0] if container.image.tags else "unknown",
+                        image=tags[0] if tags else "unknown",
                         cpu_percent=cpu_percent,
                         memory_usage_mb=mem_usage,
                         memory_limit_mb=mem_limit,
                         memory_percent=mem_percent,
+                        restart_count=int(container.attrs.get("RestartCount", 0) or 0),
                     )
                 )
         except DockerException as exc:
             logger.error("Docker connection failed: %s", exc)
 
-        return MetricsPayload(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            containers=containers,
-            ups=ups,
-        )
+        return containers
 
 
 docker_service = DockerService()

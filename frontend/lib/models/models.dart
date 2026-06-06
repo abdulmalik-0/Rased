@@ -7,6 +7,7 @@ class ContainerMetrics {
   final double memoryUsageMb;
   final double memoryLimitMb;
   final double memoryPercent;
+  final int restartCount;
 
   const ContainerMetrics({
     required this.id,
@@ -17,6 +18,7 @@ class ContainerMetrics {
     required this.memoryUsageMb,
     required this.memoryLimitMb,
     required this.memoryPercent,
+    this.restartCount = 0,
   });
 
   factory ContainerMetrics.fromJson(Map<String, dynamic> json) {
@@ -29,10 +31,77 @@ class ContainerMetrics {
       memoryUsageMb: (json['memory_usage_mb'] as num?)?.toDouble() ?? 0,
       memoryLimitMb: (json['memory_limit_mb'] as num?)?.toDouble() ?? 0,
       memoryPercent: (json['memory_percent'] as num?)?.toDouble() ?? 0,
+      restartCount: (json['restart_count'] as num?)?.toInt() ?? 0,
     );
   }
 
   bool get isRunning => status == 'running';
+}
+
+class DiskUsage {
+  final String mount;
+  final double usedGb;
+  final double totalGb;
+  final double percent;
+
+  const DiskUsage({
+    required this.mount,
+    required this.usedGb,
+    required this.totalGb,
+    required this.percent,
+  });
+
+  factory DiskUsage.fromJson(Map<String, dynamic> json) {
+    return DiskUsage(
+      mount: json['mount'] as String? ?? '',
+      usedGb: (json['used_gb'] as num?)?.toDouble() ?? 0,
+      totalGb: (json['total_gb'] as num?)?.toDouble() ?? 0,
+      percent: (json['percent'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class HostStats {
+  final bool available;
+  final double cpuPercent;
+  final int cpuCores;
+  final double memoryUsedMb;
+  final double memoryTotalMb;
+  final double memoryPercent;
+  final List<DiskUsage> disks;
+  final double? loadAvg1m;
+  final double? uptimeSeconds;
+  final String? error;
+
+  const HostStats({
+    this.available = false,
+    this.cpuPercent = 0,
+    this.cpuCores = 0,
+    this.memoryUsedMb = 0,
+    this.memoryTotalMb = 0,
+    this.memoryPercent = 0,
+    this.disks = const [],
+    this.loadAvg1m,
+    this.uptimeSeconds,
+    this.error,
+  });
+
+  factory HostStats.fromJson(Map<String, dynamic> json) {
+    return HostStats(
+      available: json['available'] as bool? ?? false,
+      cpuPercent: (json['cpu_percent'] as num?)?.toDouble() ?? 0,
+      cpuCores: (json['cpu_cores'] as num?)?.toInt() ?? 0,
+      memoryUsedMb: (json['memory_used_mb'] as num?)?.toDouble() ?? 0,
+      memoryTotalMb: (json['memory_total_mb'] as num?)?.toDouble() ?? 0,
+      memoryPercent: (json['memory_percent'] as num?)?.toDouble() ?? 0,
+      disks: (json['disks'] as List<dynamic>? ?? [])
+          .map((d) => DiskUsage.fromJson(d as Map<String, dynamic>))
+          .toList(),
+      loadAvg1m: (json['load_avg_1m'] as num?)?.toDouble(),
+      uptimeSeconds: (json['uptime_seconds'] as num?)?.toDouble(),
+      error: json['error'] as String?,
+    );
+  }
 }
 
 class UpsStatus {
@@ -61,24 +130,104 @@ class UpsStatus {
   }
 }
 
+class UptimeResult {
+  final String name;
+  final String url;
+  final bool up;
+  final int? statusCode;
+  final double? latencyMs;
+  final int? certExpiryDays;
+  final String? error;
+
+  const UptimeResult({
+    required this.name,
+    required this.url,
+    required this.up,
+    this.statusCode,
+    this.latencyMs,
+    this.certExpiryDays,
+    this.error,
+  });
+
+  factory UptimeResult.fromJson(Map<String, dynamic> json) {
+    return UptimeResult(
+      name: json['name'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      up: json['up'] as bool? ?? false,
+      statusCode: (json['status_code'] as num?)?.toInt(),
+      latencyMs: (json['latency_ms'] as num?)?.toDouble(),
+      certExpiryDays: (json['cert_expiry_days'] as num?)?.toInt(),
+      error: json['error'] as String?,
+    );
+  }
+}
+
+class Alert {
+  final String level;
+  final String kind;
+  final String target;
+  final String message;
+  final double? value;
+  final String timestamp;
+
+  const Alert({
+    required this.level,
+    required this.kind,
+    required this.target,
+    required this.message,
+    this.value,
+    required this.timestamp,
+  });
+
+  factory Alert.fromJson(Map<String, dynamic> json) {
+    return Alert(
+      level: json['level'] as String? ?? 'warning',
+      kind: json['kind'] as String? ?? '',
+      target: json['target'] as String? ?? '',
+      message: json['message'] as String? ?? '',
+      value: (json['value'] as num?)?.toDouble(),
+      timestamp: json['timestamp'] as String? ?? '',
+    );
+  }
+}
+
 class MetricsPayload {
   final String timestamp;
+  final String hostId;
+  final String hostName;
   final List<ContainerMetrics> containers;
   final UpsStatus ups;
+  final HostStats host;
+  final List<UptimeResult> uptime;
+  final List<Alert> alerts;
 
   const MetricsPayload({
     required this.timestamp,
+    required this.hostId,
+    required this.hostName,
     required this.containers,
     required this.ups,
+    required this.host,
+    required this.uptime,
+    required this.alerts,
   });
 
   factory MetricsPayload.fromJson(Map<String, dynamic> json) {
     return MetricsPayload(
       timestamp: json['timestamp'] as String? ?? '',
+      hostId: json['host_id'] as String? ?? 'default',
+      hostName: json['host_name'] as String? ?? 'My Server',
       containers: (json['containers'] as List<dynamic>? ?? [])
           .map((c) => ContainerMetrics.fromJson(c as Map<String, dynamic>))
           .toList(),
       ups: UpsStatus.fromJson(json['ups'] as Map<String, dynamic>? ?? {}),
+      host: HostStats.fromJson(json['host'] as Map<String, dynamic>? ?? {}),
+      uptime: (json['uptime'] as List<dynamic>? ?? [])
+          .map((u) => UptimeResult.fromJson(u as Map<String, dynamic>))
+          .toList(),
+      alerts: (json['alerts'] as List<dynamic>? ?? [])
+          .map((a) => Alert.fromJson(a as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
@@ -143,6 +292,74 @@ class AnalyzeResult {
       analysis: json['analysis'] as String? ?? '',
       sanitizedLogPreview: json['sanitized_log_preview'] as String? ?? '',
       modelUsed: json['model_used'] as String? ?? '',
+    );
+  }
+}
+
+class AskResult {
+  final String answer;
+  final String modelUsed;
+
+  const AskResult({required this.answer, required this.modelUsed});
+
+  factory AskResult.fromJson(Map<String, dynamic> json) {
+    return AskResult(
+      answer: json['answer'] as String? ?? '',
+      modelUsed: json['model_used'] as String? ?? '',
+    );
+  }
+}
+
+/// A monitored machine/agent (from Supabase `devices`).
+class Device {
+  final String hostId;
+  final String hostName;
+  final String apiUrl;
+  final DateTime? lastSeen;
+
+  const Device({
+    required this.hostId,
+    required this.hostName,
+    required this.apiUrl,
+    this.lastSeen,
+  });
+
+  factory Device.fromJson(Map<String, dynamic> json) {
+    final id = json['host_id'] as String? ?? '';
+    final name = json['host_name'] as String? ?? '';
+    return Device(
+      hostId: id,
+      hostName: name.isNotEmpty ? name : id,
+      apiUrl: json['api_url'] as String? ?? '',
+      lastSeen: DateTime.tryParse(json['last_seen'] as String? ?? '')?.toLocal(),
+    );
+  }
+}
+
+/// A single point of historical metrics (from Supabase `metrics_history`).
+class HistoryPoint {
+  final DateTime ts;
+  final double? hostCpu;
+  final double? hostMem;
+  final double? hostDiskMax;
+  final int containersRunning;
+
+  const HistoryPoint({
+    required this.ts,
+    this.hostCpu,
+    this.hostMem,
+    this.hostDiskMax,
+    this.containersRunning = 0,
+  });
+
+  factory HistoryPoint.fromJson(Map<String, dynamic> json) {
+    return HistoryPoint(
+      ts: DateTime.tryParse(json['ts'] as String? ?? '')?.toLocal() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      hostCpu: (json['host_cpu'] as num?)?.toDouble(),
+      hostMem: (json['host_mem'] as num?)?.toDouble(),
+      hostDiskMax: (json['host_disk_max'] as num?)?.toDouble(),
+      containersRunning: (json['containers_running'] as num?)?.toInt() ?? 0,
     );
   }
 }

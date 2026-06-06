@@ -1,248 +1,370 @@
-# AI-Powered Server Dashboard
+# Rased — AI-Powered Server Dashboard
 
-نظام مراقبة خوادم Docker مع لوحة تحكم تفاعلية وتحليل سجلات بالذكاء الاصطناعي عند الطلب.
+**راصد** — a self-hosted dashboard to monitor Docker containers and hosts across
+one or many machines, with on-demand AI log analysis. Privacy-first: bring your
+own AI (local Ollama / LM Studio, or cloud), and logs are sanitized before they
+ever reach a model.
+
+## Features
+
+- **Live metrics** — Docker containers (CPU / RAM / restarts) + host CPU / RAM /
+  disk / load (psutil), streamed via Supabase Realtime.
+- **Multiple machines, one dashboard** — each agent self-registers and shows up
+  as its own **tab** (great for Proxmox + several LXCs).
+- **Container actions** — restart / stop / start (admin only).
+- **AI log analysis** — per-container, OpenAI-compatible providers (Ollama, LM
+  Studio, **Anthropic/Claude**, OpenAI, custom). Logs sanitized first.
+- **AI chat** — ask questions about a server; **conversations are saved** so you
+  can resume or review them later.
+- **Proactive AI triage** — on a container crash, the agent summarizes the
+  likely cause and sends it to your webhook.
+- **Daily AI health digest** — optional, sent to your webhook.
+- **Alerts → webhook** — CPU / RAM / disk / container-down / UPS / uptime / TLS
+  expiry / anomalies, routed to n8n / Telegram / Slack.
+- **Uptime + TLS checks** — HTTP availability and certificate-expiry monitoring.
+- **History** — downsampled snapshots persisted to Supabase; 24h charts.
+- **UPS** — power/battery status via NUT.
+- **Auth & roles** — email/password login; first account is **admin**, others are
+  **viewer** (read-only). Admins manage roles in the app.
+- **Bilingual UI** — Arabic + English (full RTL), dark / light themes; choice
+  persisted per browser.
 
 ## Architecture
 
 ```
-┌─────────────────┐     Realtime Broadcast      ┌──────────────┐
-│  Flutter UI     │◄────────────────────────────│   Supabase   │
-│  (Web/Desktop)  │     (metrics channel)       │              │
-└────────┬────────┘                             │  settings +  │
-         │ REST /analyze, /logs                │  RLS + Auth  │
-         ▼                                     └──────▲───────┘
-┌─────────────────┐                                  │
-│  FastAPI Agent  │──────────────────────────────────┘
-│  (on host)      │   Broadcast metrics every 3s
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
- Docker     NUT (UPS)
+   ┌──────────────┐   Realtime broadcast (per host_id)   ┌──────────────┐
+   │  Flutter UI  │◄─────────────────────────────────────│              │
+   │ (Web/Desktop)│   REST: /metrics /analyze /ask        │   Supabase   │
+   └──────┬───────┘   /logs /actions  (per device api_url) │  Auth + RLS  │
+          │                                                │  Realtime    │
+          │ ┌──────────────────────────────┐  broadcast   │  Postgres    │
+          ├─│ FastAPI agent  (host A / LXC) │──────────────►│  (settings,  │
+          │ └──────────────────────────────┘  register     │  history,    │
+          │ ┌──────────────────────────────┐               │  alerts,     │
+          └─│ FastAPI agent  (host B / LXC) │──────────────►│  devices,    │
+            └──────────────────────────────┘               │  ai_chats)   │
+                 │         │                                └──────────────┘
+              Docker     NUT (UPS)
 ```
 
-## Project Structure
+- Each **agent** reads its local Docker socket, collects host metrics, and
+  broadcasts to a shared Supabase channel tagged with its `host_id`.
+- The **frontend** aggregates all hosts into tabs, and routes actions/logs to the
+  selected device's `api_url`.
+- One machine runs the **central** stack (Supabase + agent + UI nginx); extra
+  machines run an **agent-only** container pointing at the central Supabase.
+
+## Repository layout
 
 ```
-├── backend/          # Python FastAPI agent
-├── frontend/         # Flutter (Web & Desktop)
-├── supabase/         # SQL migrations
-├── docker-compose.yml
-└── README.md
+backend/                 # FastAPI agent (Python)
+  app/
+    routers/             # /logs /analyze /actions /ask
+    services/            # docker, host(psutil), nut, uptime, alerts,
+                         #   history, broadcast, collector, ai_router, auth, device
+  Dockerfile
+frontend/                # Flutter (Web)
+  lib/{config,models,providers,services,screens,widgets,l10n,theme}
+supabase/migrations/     # 001..004 (run in order)
+scripts/                 # *.sh (Linux), deploy-to-server.ps1/.sh
+docker-compose.yml       # central: Supabase + Rased
+docker-compose.rased.yml # central: rased-api + rased-ui
+docker-compose.agent.yml # extra machine: agent only
 ```
 
 ## Prerequisites
 
-- **Docker** (for running containers + agent socket access)
-- **Python 3.12+** (local backend development)
-- **Flutter 3.16+** (frontend — Web & Desktop)
-- **Supabase project** (Auth, Realtime Broadcast, PostgreSQL)
+- **Docker** + Docker Compose v2 (`docker compose version`)
+- **git** + internet (first run fetches the Supabase template and builds images)
+- **Flutter 3.16+** to build the web UI
+- Free ports on the central host: **8082** (UI), **8002** (API), **8003** (Supabase/Kong)
 
-## 1. Supabase Setup
+---
 
-### Create project
+## Quick start (single Linux host)
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Enable **Anonymous sign-ins** (Authentication → Providers → Anonymous) for quick start, or configure email/OAuth
-3. Enable **Realtime Broadcast** (Project Settings → API → Realtime)
-
-### Run SQL migration
-
-Open **SQL Editor** in Supabase and run the full script:
+### 1. Get the code onto the host
 
 ```bash
-# File location
-supabase/migrations/001_initial.sql
+git clone <your-repo> ~/projects/rased   # or copy the folder
+cd ~/projects/rased
+chmod +x scripts/*.sh
 ```
 
-This creates:
-
-- `settings` table with **encrypted** `api_key` (pgcrypto)
-- RLS policies (users can only access their own settings)
-- RPC functions: `upsert_settings()`, `get_settings_decrypted()`
-
-### Set encryption key (production)
-
-```sql
-ALTER DATABASE postgres SET app.settings_encryption_key = 'your-32-char-secret-key-here!!';
-```
-
-> Change the default dev key before going to production.
-
-### Copy API keys
-
-From **Project Settings → API**:
-
-| Key | Used by |
-|-----|---------|
-| `URL` | Backend + Frontend |
-| `anon` key | Frontend |
-| `service_role` key | Backend (broadcast only) |
-
-## 2. Backend Setup
-
-### Local development
+### 2. Create and edit `.env`
 
 ```bash
-cd backend
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# Linux/macOS
-source .venv/bin/activate
-
-pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your Supabase credentials
+nano .env
 ```
+Set at minimum (replace `YOUR_IP` with the host's LAN IP, e.g. `192.168.100.100`):
 
-### Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (broadcast) |
-| `SUPABASE_BROADCAST_CHANNEL` | Channel name (default: `server-metrics`) |
-| `METRICS_INTERVAL_SECONDS` | Poll interval (default: `3`) |
-| `NUT_HOST` / `NUT_PORT` | NUT server for UPS |
-| `CORS_ORIGINS` | Allowed frontend origins |
-
-### Run
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
 ```
-
-### API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check |
-| `GET` | `/metrics` | Current Docker + UPS metrics (REST fallback) |
-| `GET` | `/logs/{container_id}?tail=100` | Container logs (sanitized copy included) |
-| `POST` | `/analyze` | Fetch logs, sanitize, send to AI provider |
-
-### Data Sanitization
-
-Before any log data reaches an AI provider, the backend redacts:
-
-- IP addresses → `[REDACTED_IP]`
-- Emails → `[REDACTED_EMAIL]`
-- API keys / tokens / JWTs → `[REDACTED_TOKEN]`
-
-Run tests:
-
-```bash
-cd backend
-python -m unittest tests.test_sanitization
+POSTGRES_PASSWORD=change-me
+DASHBOARD_PASSWORD=change-me
+RASED_CORS_ORIGINS=http://YOUR_IP:8082
+SUPABASE_PUBLIC_URL=http://YOUR_IP:8003
+API_EXTERNAL_URL=http://YOUR_IP:8003
+SITE_URL=http://YOUR_IP:8082
+RASED_PUBLIC_BASE_URL=http://YOUR_IP:8002
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_EMAIL_AUTOCONFIRM=true   # lets sign-up work without SMTP
 ```
+> Keep `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY` consistent. If you change
+> `JWT_SECRET` you **must** regenerate `ANON_KEY`/`SERVICE_ROLE_KEY` to match
+> (see *Supabase keys* below) and rebuild the web app.
 
-## 3. Frontend Setup
+### 3. Build the Flutter web app
 
-### Initialize Flutter project files
-
-If `frontend/` was cloned without platform folders:
+The web build **bakes in** the URLs + anon key, so build with the host's IP:
 
 ```bash
 cd frontend
-flutter create . --platforms=web,windows,linux,macos
 flutter pub get
+flutter build web --no-tree-shake-icons \
+  --dart-define=BACKEND_URL=http://YOUR_IP:8002 \
+  --dart-define=SUPABASE_URL=http://YOUR_IP:8003 \
+  --dart-define=SUPABASE_ANON_KEY=<ANON_KEY from .env>
+cd ..
 ```
 
-### Configure
-
-Pass credentials at build/run time:
+### 4. Start the stack
 
 ```bash
-flutter run -d chrome \
-  --dart-define=SUPABASE_URL=http://localhost:8003 \
-  --dart-define=SUPABASE_ANON_KEY=<ANON_KEY from .env> \
-  --dart-define=BACKEND_URL=http://localhost:8002
+bash scripts/up.sh
 ```
+This fetches the Supabase template (first run), builds the agent image, starts
+everything, fixes web file permissions, and (re)binds the UI. Wait until
+`docker compose ps` shows `supabase-db` **healthy**.
 
-### Build for production
+### 5. Apply database migrations (first time)
 
 ```bash
-flutter build web \
-  --dart-define=SUPABASE_URL=http://localhost:8003 \
-  --dart-define=SUPABASE_ANON_KEY=<ANON_KEY from .env> \
-  --dart-define=BACKEND_URL=http://localhost:8002
+bash scripts/run-migration.sh        # applies 001 → 004
+docker compose restart rest          # reload PostgREST schema cache
 ```
 
-Defaults in `lib/config/app_config.dart` already use ports **8002** / **8003** / **8082** (UI via nginx).
+### 6. Open the firewall (LAN)
 
-## 4. Docker Compose (Full Stack — Rased + Local Supabase)
-
-**Port map** (avoids conflicts with 8000/8080/8081/80/5678 on your server):
-
-| Service | Host port |
-|---------|-----------|
-| Rased UI | **8082** |
-| Rased API | **8002** |
-| Supabase Kong | **8003** |
-
-See **[DEPLOY.md](DEPLOY.md)** for the full Arabic/English deploy guide.
-
-```powershell
-.\scripts\setup-supabase-docker.ps1
-copy .env.example .env
-# Build Flutter web with dart-define (see frontend/.env.example)
-.\scripts\up.ps1
-.\scripts\run-migration.ps1
+```bash
+# ufw
+sudo ufw allow 8082/tcp && sudo ufw allow 8002/tcp && sudo ufw allow 8003/tcp
+# firewalld
+sudo firewall-cmd --add-port=8082/tcp --add-port=8002/tcp --add-port=8003/tcp --permanent && sudo firewall-cmd --reload
 ```
 
-| Service | URL |
+### 7. First login
+
+Open **http://YOUR_IP:8082** → **Create account**. The first account becomes
+**admin** automatically. Open **Settings → AI Provider** to configure a model.
+
+| URL | What |
+|-----|------|
+| http://YOUR_IP:8082 | Dashboard |
+| http://YOUR_IP:8002/docs | Agent API docs |
+| http://YOUR_IP:8003 | Supabase Studio (`supabase` / `DASHBOARD_PASSWORD`) |
+
+---
+
+## Adding more machines (multi-device tabs)
+
+Each extra machine/LXC runs an **agent only**, pointing at the central Supabase.
+It appears as a new tab automatically.
+
+On the new machine, copy `backend/`, `docker-compose.agent.yml`, and
+`.env.agent.example`, then:
+
+```bash
+cp .env.agent.example .env.agent
+nano .env.agent
+```
+Set:
+```
+RASED_HOST_ID=lxc-2                              # unique per machine
+RASED_HOST_NAME=LXC 2
+RASED_PUBLIC_BASE_URL=http://THIS_LXC_IP:8002   # so the UI can manage it
+SUPABASE_URL=http://CENTRAL_IP:8003             # the central Supabase
+SERVICE_ROLE_KEY=<same as central .env>
+JWT_SECRET=<same as central .env>
+RASED_CORS_ORIGINS=http://CENTRAL_IP:8082
+```
+Then:
+```bash
+docker compose --env-file .env.agent -f docker-compose.agent.yml up -d --build
+sudo ufw allow 8002/tcp   # so the dashboard can reach this agent
+```
+Within seconds a new tab appears. Repeat for each machine.
+
+> `.env.agent` holds secrets and is gitignored. `SERVICE_ROLE_KEY` / `JWT_SECRET`
+> **must match** the central values.
+
+---
+
+## AI providers
+
+Configure in **Settings → AI Provider**. The agent calls the provider, so URLs
+must be reachable **from the agent container** (use `host.docker.internal`, not
+`localhost`, for services on the same host).
+
+| Provider | Base URL | Model example | API key |
+|----------|----------|---------------|---------|
+| Ollama | `http://host.docker.internal:11434/v1` | `llama3.2` | — |
+| LM Studio | `http://<lm-studio-ip>:1234/v1` | (loaded model) | — |
+| Anthropic (Claude) | `https://api.anthropic.com/v1` | `claude-sonnet-4-...` | required |
+| OpenAI / cloud | `https://api.openai.com/v1` | `gpt-4o` | required |
+| Custom | any OpenAI-compatible `/v1` | — | optional |
+
+> Anthropic works via its **OpenAI-compatible** endpoint (`/v1/chat/completions`).
+> LM Studio: enable **Serve on Local Network** (Developer → Server).
+
+**Server-side AI** (for autonomous *daily digest* + *proactive triage*) is set via
+agent env (`AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`) and is separate from the
+per-user on-demand config.
+
+---
+
+## Users & roles
+
+- **First account = admin.** All later accounts = **viewer** (read-only: can view
+  metrics, logs, charts, and use AI chat, but cannot start/stop/restart containers).
+- Admins see a **Users** screen (group icon) to promote/demote accounts.
+- Enforced in the backend: `POST /actions/*` requires a valid admin JWT.
+
+To promote a user manually (Supabase Studio → SQL):
+```sql
+update public.profiles set role='admin' where email='person@example.com';
+```
+
+---
+
+## AI chat (saved conversations)
+
+The chat icon opens a full conversation view. The side drawer lists past
+conversations (per device); `+` starts a new one. Each exchange is saved to
+`ai_chats` (per user, RLS-protected) so you can resume or review later.
+
+---
+
+## Alerts, uptime, history, digest
+
+Set on the **agent** via env (see `.env.example`); everything degrades gracefully
+if unset.
+
+```env
+ALERT_WEBHOOK_URL=https://your-n8n/webhook/rased   # n8n / Telegram / Slack
+CPU_ALERT_PERCENT=90
+MEM_ALERT_PERCENT=90
+DISK_ALERT_PERCENT=85
+UPTIME_CHECKS=Portfolio|https://example.com, Search|https://search.example.com
+SSL_ALERT_DAYS=14
+HISTORY_ENABLED=true
+AI_BASE_URL=http://host.docker.internal:11434/v1
+AI_MODEL=llama3.2
+DIGEST_ENABLED=true
+DIGEST_HOUR_UTC=8
+```
+Prune history periodically: `SELECT public.prune_metrics_history(14);`
+
+---
+
+## UPS via NUT
+
+Point the agent at a NUT server (`upsd`):
+```env
+NUT_HOST=host.docker.internal   # or the NUT host's IP (e.g. a Proxmox host)
+NUT_PORT=3493
+NUT_UPS_NAME=ups                # from `upsc -l`
+```
+If NUT runs on a **Proxmox host** while Rased runs in an LXC, set `NUT_HOST` to the
+Proxmox IP and make `upsd` listen on the network — add to `/etc/nut/upsd.conf`:
+```
+LISTEN 127.0.0.1 3493
+LISTEN <proxmox-ip> 3493
+```
+then `systemctl restart nut-server`. (Some UPS models don't report
+`battery.charge`; status OL/OB still works.)
+
+---
+
+## Host metrics inside a container
+
+On Linux, the agent reads the host's `/proc`, so **CPU / RAM / load are
+host-accurate**. Disk shows the host's backing filesystem as `/`.
+
+---
+
+## Updating an existing deployment
+
+Build the web app (step 3), then ship only what changed (never overwrites the
+server `.env`):
+
+```bash
+# from the repo root on your build machine
+tar -czf rased-update.tar.gz backend/app backend/requirements.txt \
+    frontend/build/web scripts supabase/migrations \
+    docker-compose.agent.yml .env.agent.example
+scp rased-update.tar.gz user@CENTRAL_IP:~/
+
+# on the central host
+cd ~/projects/rased
+tar -xzf ~/rased-update.tar.gz
+chmod +x scripts/*.sh
+bash scripts/up.sh                 # rebuild agent + rebind UI
+bash scripts/run-migration.sh      # apply any new migrations
+docker compose restart rest        # reload schema cache
+```
+Then hard-refresh the browser (Ctrl+Shift+R).
+
+---
+
+## Supabase keys (production)
+
+The default demo `ANON_KEY` / `SERVICE_ROLE_KEY` match the default `JWT_SECRET`
+and are public — fine for a closed LAN, **not** for production. To generate your
+own, sign them with your `JWT_SECRET` using the JWT generator in the
+[Supabase self-hosting docs](https://supabase.com/docs/guides/self-hosting/docker),
+put them in `.env`, and rebuild the web app with the new `ANON_KEY`.
+
+---
+
+## Migrations
+
+| File | Creates |
+|------|---------|
+| `001_initial.sql` | `settings` (encrypted api_key), RLS, `upsert_settings`/`get_settings_decrypted` |
+| `002_metrics_history.sql` | `metrics_history`, `alerts`, `prune_metrics_history()` |
+| `003_auth_roles.sql` | `profiles`, `is_admin()`, `ensure_profile()` (first user = admin) |
+| `004_devices_and_chats.sql` | `devices` (agent registry), `ai_chats` (saved conversations) |
+
+`run-migration.sh` applies all in order (idempotent). After applying, always
+`docker compose restart rest` so PostgREST reloads its schema cache.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
 |---------|-----|
-| Rased UI | http://localhost:8082 |
-| Rased API | http://localhost:8002 |
-| API Docs | http://localhost:8002/docs |
-| Supabase API (Kong) | http://localhost:8003 |
+| `permission denied` on docker | `sudo usermod -aG docker $USER`, re-login (or use sudo) |
+| UI returns **403** | Web files unreadable / stale mount: `chmod -R a+rX frontend/build/web` then `docker compose up -d --force-recreate rased-ui` (built into `up.sh`) |
+| `Could not find the table/function … in the schema cache` (PGRST205/202) | Run `bash scripts/run-migration.sh` then `docker compose restart rest` |
+| `function pgp_sym_encrypt … does not exist` | Re-apply migrations (the RPCs use `search_path = public, extensions`) + restart `rest` |
+| `null value in column "user_id"` on save | Not signed in — log in (anonymous is disabled; use email/password) |
+| Login: `permission denied to set parameter` during migration | Already fixed — the encryption key is a function fallback, not `ALTER DATABASE` |
+| Sign-up stuck | Ensure `ENABLE_EMAIL_AUTOCONFIRM=true`, then `docker compose up -d --force-recreate auth` |
+| UPS shows disconnected | Verify `NUT_HOST`/`NUT_UPS_NAME` in `.env`, port 3493 reachable, `upsd` LISTENs on the network |
+| Packaged on Windows → odd values on Linux | Fix CRLF: `sed -i 's/\r$//' .env supabase/migrations/*.sql` |
+| Restart everything | `bash scripts/up.sh` |
 
-Inside Docker, `rased-api` uses `SUPABASE_URL=http://kong:8000`. The backend container mounts `/var/run/docker.sock` to read container metrics.
+---
 
-## 5. AI Provider Configuration
+## Security notes
 
-In the app **Settings** page:
-
-| Provider | Auto-filled Base URL |
-|----------|---------------------|
-| Ollama | `http://localhost:11434/v1` |
-| LM Studio | `http://localhost:1234/v1` |
-| Cloud API | (manual — e.g. `https://api.openai.com/v1`) |
-| Custom | (manual) |
-
-Settings are stored encrypted in Supabase. When analyzing logs, the frontend sends the AI config to the backend, which calls the provider using the **OpenAI Chat Completions** standard.
-
-### Example: Ollama
-
-```bash
-ollama serve
-ollama pull llama3.2
-```
-
-Settings: Provider = Ollama, Model = `llama3.2`, API Key = (empty)
-
-## 6. NUT (UPS) Setup (Optional)
-
-Install [Network UPS Tools](https://networkupstools.org/) on the host:
-
-```bash
-# Linux example
-sudo apt install nut
-# Configure /etc/nut/ups.conf and upsd
-```
-
-Point backend env vars to your NUT server. If unavailable, the dashboard shows "NUT disconnected" gracefully.
-
-## Security Notes
-
-- API keys encrypted at rest via `pgp_sym_encrypt`
-- RLS enforced on all settings rows
-- Logs sanitized **before** AI analysis (never send raw secrets)
-- Use `service_role` key **only** on the backend agent, never in the frontend
-- Rotate `app.settings_encryption_key` in production
+- API keys encrypted at rest (pgcrypto) with RLS; logs sanitized before AI.
+- Container actions require an **admin** JWT (verified server-side).
+- Use `service_role` only on the agent, never in the frontend.
+- Change `POSTGRES_PASSWORD` / `DASHBOARD_PASSWORD` before first start; rotate the
+  demo Supabase keys for anything beyond a closed LAN.
 
 ## License
 

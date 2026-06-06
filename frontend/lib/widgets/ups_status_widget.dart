@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 
@@ -10,6 +11,7 @@ class UpsStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isOk = ups.connected && !ups.onBattery;
     final icon = !ups.connected
         ? Icons.power_off
@@ -18,10 +20,12 @@ class UpsStatusWidget extends StatelessWidget {
             : Icons.power;
 
     final color = !ups.connected
-        ? AppTheme.textSecondary
+        ? colors.textSecondary
         : ups.onBattery
-            ? AppTheme.warning
-            : AppTheme.accent;
+            ? colors.warning
+            : colors.accent;
+
+    final charge = ups.batteryChargePercent;
 
     return Card(
       child: Padding(
@@ -34,55 +38,54 @@ class UpsStatusWidget extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'UPS Status',
+                  Text(
+                    context.tr('upsStatus'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _statusText,
+                    _statusText(context),
                     style: TextStyle(fontSize: 13, color: color),
                   ),
-                  if (ups.batteryChargePercent != null)
+                  if (charge != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: LinearProgressIndicator(
-                        value: ups.batteryChargePercent! / 100,
-                        backgroundColor: AppTheme.surfaceElevated,
+                        value: (charge / 100).clamp(0.0, 1.0),
+                        backgroundColor: colors.surfaceElevated,
                         color: color,
                         minHeight: 6,
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                  if (ups.batteryChargePercent != null)
+                  if (charge != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'Battery: ${ups.batteryChargePercent!.toStringAsFixed(0)}%',
-                        style: const TextStyle(
+                        '${context.tr('battery')}: ${charge.toStringAsFixed(0)}%',
+                        style: TextStyle(
                           fontSize: 11,
-                          color: AppTheme.textSecondary,
+                          color: colors.textSecondary,
                         ),
                       ),
                     ),
                 ],
               ),
             ),
-            if (isOk)
-              const Icon(Icons.check_circle, color: AppTheme.accent),
+            if (isOk) Icon(Icons.check_circle, color: colors.accent),
           ],
         ),
       ),
     );
   }
 
-  String get _statusText {
-    if (!ups.connected) return ups.error ?? 'NUT disconnected';
-    if (ups.onBattery) return 'Running on battery (${ups.status})';
-    return 'Connected to mains (${ups.status})';
+  String _statusText(BuildContext context) {
+    if (!ups.connected) return ups.error ?? context.tr('upsDisconnected');
+    if (ups.onBattery) return '${context.tr('onBattery')} (${ups.status})';
+    return '${context.tr('onMains')} (${ups.status})';
   }
 }

@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 
 class MetricChart extends StatelessWidget {
@@ -17,13 +18,15 @@ class MetricChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     if (cpuData.isEmpty && memoryData.isEmpty) {
       return SizedBox(
-        height: 120,
+        height: 84,
         child: Center(
           child: Text(
-            'Collecting data…',
-            style: TextStyle(color: AppTheme.textSecondary.withValues(alpha: 0.7)),
+            context.tr('collectingData'),
+            style: TextStyle(color: colors.textSecondary.withValues(alpha: 0.7)),
           ),
         ),
       );
@@ -34,15 +37,15 @@ class MetricChart extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppTheme.textSecondary,
+            color: colors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 100,
+          height: 72,
           child: LineChart(
             LineChartData(
               gridData: FlGridData(
@@ -50,7 +53,7 @@ class MetricChart extends StatelessWidget {
                 drawVerticalLine: false,
                 horizontalInterval: 25,
                 getDrawingHorizontalLine: (_) => FlLine(
-                  color: AppTheme.border.withValues(alpha: 0.5),
+                  color: colors.border.withValues(alpha: 0.5),
                   strokeWidth: 1,
                 ),
               ),
@@ -62,9 +65,9 @@ class MetricChart extends StatelessWidget {
                     interval: 50,
                     getTitlesWidget: (value, _) => Text(
                       '${value.toInt()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: AppTheme.textSecondary,
+                        color: colors.textSecondary,
                       ),
                     ),
                   ),
@@ -83,8 +86,8 @@ class MetricChart extends StatelessWidget {
               minY: 0,
               maxY: 100,
               lineBarsData: [
-                _line(cpuData, AppTheme.primary, 'CPU'),
-                _line(memoryData, AppTheme.accent, 'RAM'),
+                _line(cpuData, colors.primary),
+                _line(memoryData, colors.accent),
               ],
               lineTouchData: const LineTouchData(enabled: false),
             ),
@@ -93,16 +96,16 @@ class MetricChart extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           children: [
-            _legend(AppTheme.primary, 'CPU'),
+            _legend(colors.primary, context.tr('cpu'), colors),
             const SizedBox(width: 16),
-            _legend(AppTheme.accent, 'RAM'),
+            _legend(colors.accent, context.tr('ram'), colors),
           ],
         ),
       ],
     );
   }
 
-  LineChartBarData _line(List<double> data, Color color, String _) {
+  LineChartBarData _line(List<double> data, Color color) {
     return LineChartBarData(
       spots: List.generate(
         data.length,
@@ -119,7 +122,7 @@ class MetricChart extends StatelessWidget {
     );
   }
 
-  Widget _legend(Color color, String label) {
+  Widget _legend(Color color, String label, RasedColors colors) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -129,7 +132,8 @@ class MetricChart extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: colors.textSecondary)),
       ],
     );
   }

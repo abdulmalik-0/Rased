@@ -1,5 +1,3 @@
-import asyncio
-import json
 import logging
 
 import httpx
@@ -14,7 +12,13 @@ class SupabaseBroadcastService:
     """Push metrics to Supabase Realtime Broadcast via REST API."""
 
     def __init__(self) -> None:
-        self._enabled = bool(settings.supabase_url and settings.supabase_service_role_key)
+        self._enabled = bool(
+            settings.supabase_url and settings.supabase_service_role_key
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
 
     async def broadcast_metrics(self, payload: MetricsPayload) -> None:
         if not self._enabled:
@@ -32,7 +36,7 @@ class SupabaseBroadcastService:
                 {
                     "topic": settings.supabase_broadcast_channel,
                     "event": "metrics",
-                    "payload": json.loads(payload.model_dump_json()),
+                    "payload": payload.model_dump(),
                 }
             ]
         }
@@ -51,16 +55,3 @@ class SupabaseBroadcastService:
 
 
 broadcast_service = SupabaseBroadcastService()
-
-
-async def metrics_collector_loop(
-    docker_svc,
-    nut_svc,
-    broadcast_svc,
-    interval: int,
-) -> None:
-    while True:
-        ups = nut_svc.get_status()
-        metrics = docker_svc.collect_metrics(ups)
-        await broadcast_svc.broadcast_metrics(metrics)
-        await asyncio.sleep(interval)

@@ -2,8 +2,8 @@
 
 This folder is populated by:
 
-```powershell
-..\..\scripts\setup-supabase-docker.ps1
+```bash
+../../scripts/setup-supabase-docker.sh
 ```
 
 It clones the official [Supabase Docker](https://github.com/supabase/supabase/tree/master/docker) template into this directory.

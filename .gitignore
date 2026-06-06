@@ -9,7 +9,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Local secrets / env (keep the *.example templates tracked)
 .env
+.env.agent
+.env.*.local
 
 # Flutter
 frontend/.dart_tool/

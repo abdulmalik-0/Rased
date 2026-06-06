@@ -16,8 +16,9 @@ async def analyze_container_logs(request: AnalyzeRequest) -> AnalyzeResponse:
             detail="base_url and model_name are required",
         )
 
+    tail = max(1, min(request.tail, 1000))
     try:
-        logs = docker_service.get_container_logs(request.container_id, tail=100)
+        logs = docker_service.get_container_logs(request.container_id, tail=tail)
     except NotFound:
         raise HTTPException(
             status_code=404,
@@ -34,6 +35,7 @@ async def analyze_container_logs(request: AnalyzeRequest) -> AnalyzeResponse:
             logs,
             request.ai_config,
             request.custom_prompt,
+            request.lang,
         )
     except Exception as exc:
         raise HTTPException(

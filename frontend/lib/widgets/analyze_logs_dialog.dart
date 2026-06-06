@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
 
 class AnalyzeLogsDialog extends ConsumerStatefulWidget {
   final ContainerMetrics container;
+  final String apiUrl;
+  final String hostId;
 
-  const AnalyzeLogsDialog({super.key, required this.container});
+  const AnalyzeLogsDialog({
+    super.key,
+    required this.container,
+    this.apiUrl = '',
+    this.hostId = 'default',
+  });
 
   @override
   ConsumerState<AnalyzeLogsDialog> createState() => _AnalyzeLogsDialogState();
@@ -19,17 +27,21 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
   AnalyzeResult? _result;
   String? _error;
   bool _loading = false;
+  bool _started = false;
+  bool _saved = false;
 
   Future<void> _analyze() async {
     final settings = ref.read(settingsProvider).valueOrNull;
     if (settings == null || settings.modelName.isEmpty) {
       setState(() {
-        _error = 'Configure AI settings first (Settings page).';
+        _started = true;
+        _error = context.tr('configureFirst');
       });
       return;
     }
 
     setState(() {
+      _started = true;
       _loading = true;
       _error = null;
       _result = null;
@@ -39,12 +51,17 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
       final result = await ref.read(backendServiceProvider).analyzeLogs(
             containerId: widget.container.id,
             aiConfig: settings,
+            baseUrl: widget.apiUrl,
+            lang: ref.read(localeProvider).languageCode,
           );
+      if (!mounted) return;
       setState(() {
         _result = result;
         _loading = false;
       });
+      _saveAnalysis(result);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -52,19 +69,33 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
+  Future<void> _saveAnalysis(AnalyzeResult result) async {
+    final client = ref.read(supabaseClientProvider);
+    final uid = client.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      await client.from('ai_chats').insert({
+        'user_id': uid,
+        'host_id': widget.hostId,
+        'title': '🔍 ${widget.container.name}',
+        'messages': [
+          {'role': 'user', 'content': 'Analyze logs: ${widget.container.name}'},
+          {'role': 'assistant', 'content': result.analysis},
+        ],
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      if (mounted) setState(() => _saved = true);
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Dialog(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppTheme.border),
+        side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 700, maxHeight: 600),
@@ -76,34 +107,34 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: AppTheme.primary),
+                  Icon(Icons.auto_awesome, color: colors.primary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'AI Log Analysis — ${widget.container.name}',
-                      style: const TextStyle(
+                      '${context.tr('aiLogAnalysis')} — ${widget.container.name}',
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+                    icon: Icon(Icons.close, color: colors.textSecondary),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Expanded(
-                child: _buildContent(),
-              ),
+              Flexible(child: _buildContent(colors)),
               if (_result != null) ...[
                 const Divider(),
                 const SizedBox(height: 8),
                 Text(
-                  'Model: ${_result!.modelUsed} • Logs sanitized before analysis',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                  '${context.tr('modelLabel')}: ${_result!.modelUsed} • '
+                  '${context.tr('sanitizedNote')}'
+                  '${_saved ? ' • ${context.tr('analysisSaved')}' : ''}',
+                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
                 ),
               ],
             ],
@@ -113,22 +144,46 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
     );
   }
 
-  Widget _buildContent() {
-    if (_loading) {
-      return const Center(
+  Widget _buildContent(RasedColors colors) {
+    if (!_started) {
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: AppTheme.primary),
-            SizedBox(height: 16),
+            Icon(Icons.auto_awesome, color: colors.primary, size: 40),
+            const SizedBox(height: 12),
             Text(
-              'Fetching & analyzing logs…',
-              style: TextStyle(color: AppTheme.textSecondary),
+              context.tr('analyzeIntro'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.textSecondary),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _analyze,
+              icon: const Icon(Icons.play_arrow),
+              label: Text(context.tr('startAnalysis')),
+              style: FilledButton.styleFrom(backgroundColor: colors.primary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_loading) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: colors.primary),
+            const SizedBox(height: 16),
             Text(
-              'Sensitive data is redacted before sending to AI',
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              context.tr('analyzing'),
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.tr('redactNote'),
+              style: TextStyle(fontSize: 11, color: colors.textSecondary),
             ),
           ],
         ),
@@ -140,11 +195,14 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppTheme.danger, size: 48),
+            Icon(Icons.error_outline, color: colors.danger, size: 48),
             const SizedBox(height: 12),
             Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _analyze, child: const Text('Retry')),
+            ElevatedButton(
+              onPressed: _analyze,
+              child: Text(context.tr('retry')),
+            ),
           ],
         ),
       );
@@ -153,30 +211,25 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
     if (_result == null) return const SizedBox.shrink();
 
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MarkdownBody(
-            data: _result!.analysis,
-            styleSheet: MarkdownStyleSheet(
-              p: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
-              code: TextStyle(
-                backgroundColor: AppTheme.surfaceElevated,
-                color: AppTheme.accent,
-                fontFamily: 'monospace',
-              ),
-              codeblockDecoration: BoxDecoration(
-                color: AppTheme.surfaceElevated,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.border),
-              ),
-              h1: const TextStyle(color: AppTheme.textPrimary, fontSize: 20),
-              h2: const TextStyle(color: AppTheme.textPrimary, fontSize: 18),
-              h3: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
-              listBullet: const TextStyle(color: AppTheme.primary),
-            ),
+      child: MarkdownBody(
+        data: _result!.analysis,
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(color: colors.textPrimary, height: 1.5),
+          code: TextStyle(
+            backgroundColor: colors.surfaceElevated,
+            color: colors.accent,
+            fontFamily: 'monospace',
           ),
-        ],
+          codeblockDecoration: BoxDecoration(
+            color: colors.surfaceElevated,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border),
+          ),
+          h1: TextStyle(color: colors.textPrimary, fontSize: 20),
+          h2: TextStyle(color: colors.textPrimary, fontSize: 18),
+          h3: TextStyle(color: colors.textPrimary, fontSize: 16),
+          listBullet: TextStyle(color: colors.primary),
+        ),
       ),
     );
   }

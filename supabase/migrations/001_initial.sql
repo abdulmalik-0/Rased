@@ -20,35 +20,20 @@ CREATE TABLE IF NOT EXISTS public.settings (
     UNIQUE (user_id)
 );
 
--- Encryption key stored in Supabase Vault or env; here we use a DB setting placeholder.
--- In production, set: ALTER DATABASE postgres SET app.settings_encryption_key = 'your-32-byte-secret';
--- For development, a default key is used (CHANGE IN PRODUCTION):
-DO $$
-BEGIN
-    IF current_setting('app.settings_encryption_key', true) IS NULL THEN
-        PERFORM set_config('app.settings_encryption_key', 'dev-change-me-in-production!!', false);
-    END IF;
-EXCEPTION WHEN OTHERS THEN
-    PERFORM set_config('app.settings_encryption_key', 'dev-change-me-in-production!!', false);
-END $$;
+-- Allow any provider_type (OpenAI-compatible, Anthropic/Claude, or custom gateways).
+ALTER TABLE public.settings DROP CONSTRAINT IF EXISTS settings_provider_type_check;
 
--- Trigger function: encrypt api_key on write
-CREATE OR REPLACE FUNCTION public.encrypt_api_key()
-RETURNS TRIGGER AS $$
-DECLARE
-    enc_key TEXT;
-BEGIN
-    enc_key := current_setting('app.settings_encryption_key', true);
-    IF NEW.api_key_encrypted IS NULL AND TG_ARGV[0] IS NOT NULL THEN
-        -- Plain text passed via session variable for upsert from client-side edge function
-        NULL;
-    END IF;
-    NEW.updated_at := NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Encryption key for the stored AI api_key.
+-- NOTE: Supabase's `postgres` role is NOT a superuser, so it cannot
+-- `ALTER DATABASE ... SET app.*` to persist a custom GUC (it errors with
+-- "permission denied to set parameter"). Instead, the RPCs below resolve the
+-- key from current_setting() with a hardcoded fallback.
+-- CHANGE THE FALLBACK in production (keep it constant, or saved keys can't be
+-- decrypted). To override at the DB level, run as a superuser (supabase_admin):
+--   ALTER DATABASE postgres SET app.settings_encryption_key = 'your-secret';
 
 -- Helper: upsert settings with encrypted API key (call from app via RPC)
+-- (updated_at is maintained directly inside the RPC below.)
 CREATE OR REPLACE FUNCTION public.upsert_settings(
     p_provider_type TEXT,
     p_base_url TEXT,
@@ -58,16 +43,16 @@ CREATE OR REPLACE FUNCTION public.upsert_settings(
 RETURNS public.settings
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     enc_key TEXT;
     result public.settings;
 BEGIN
-    enc_key := current_setting('app.settings_encryption_key', true);
-    IF enc_key IS NULL OR enc_key = '' THEN
-        RAISE EXCEPTION 'Encryption key not configured';
-    END IF;
+    enc_key := coalesce(
+        nullif(current_setting('app.settings_encryption_key', true), ''),
+        'dev-change-me-in-production'
+    );
 
     INSERT INTO public.settings (user_id, provider_type, base_url, model_name, api_key_encrypted)
     VALUES (
@@ -109,12 +94,15 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     enc_key TEXT;
 BEGIN
-    enc_key := current_setting('app.settings_encryption_key', true);
+    enc_key := coalesce(
+        nullif(current_setting('app.settings_encryption_key', true), ''),
+        'dev-change-me-in-production'
+    );
 
     RETURN QUERY
     SELECT
@@ -150,19 +138,23 @@ FROM public.settings;
 -- ============================================================
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own settings" ON public.settings;
 CREATE POLICY "Users can view own settings"
     ON public.settings FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own settings" ON public.settings;
 CREATE POLICY "Users can insert own settings"
     ON public.settings FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own settings" ON public.settings;
 CREATE POLICY "Users can update own settings"
     ON public.settings FOR UPDATE
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own settings" ON public.settings;
 CREATE POLICY "Users can delete own settings"
     ON public.settings FOR DELETE
     USING (auth.uid() = user_id);
