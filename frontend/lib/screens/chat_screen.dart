@@ -10,7 +10,19 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String hostId;
   final String apiUrl;
 
-  const ChatScreen({super.key, required this.hostId, this.apiUrl = ''});
+  /// Open straight into an existing saved conversation (e.g. a log analysis).
+  final String? initialChatId;
+
+  /// Fallback seed messages if [initialChatId] isn't found on the server yet.
+  final List<Map<String, String>>? initialMessages;
+
+  const ChatScreen({
+    super.key,
+    required this.hostId,
+    this.apiUrl = '',
+    this.initialChatId,
+    this.initialMessages,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -42,7 +54,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _loadChats() async {
     try {
       final rows = await ref.read(apiProvider).getChats(widget.hostId);
-      if (mounted) setState(() => _chats = rows);
+      if (!mounted) return;
+      setState(() => _chats = rows);
+      // Jump straight into the requested conversation (e.g. from log analysis).
+      if (_currentId == null && widget.initialChatId != null) {
+        final match =
+            rows.where((c) => c['id'] == widget.initialChatId).toList();
+        if (match.isNotEmpty) {
+          _openChat(match.first);
+          return;
+        }
+      }
+      if (_currentId == null &&
+          _messages.isEmpty &&
+          widget.initialMessages != null) {
+        setState(() => _messages = List.from(widget.initialMessages!));
+      }
     } catch (_) {}
   }
 

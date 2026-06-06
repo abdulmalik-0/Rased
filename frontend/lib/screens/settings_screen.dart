@@ -51,6 +51,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _providerType = config.providerType;
       _baseUrlController.text = config.baseUrl;
       _modelController.text = config.modelName;
+      _apiKeyController.text = config.apiKey;
       _loaded = true;
     });
   }
@@ -103,13 +104,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    // Load saved config into the form once.
-    ref.listen(settingsProvider, (prev, next) {
-      next.whenData((config) {
-        if (config != null && !_loaded) _loadFromConfig(config);
-      });
-    });
     final settingsAsync = ref.watch(settingsProvider);
+    // Populate the form once when the saved config is available. Using the
+    // current value (not just change events) covers the case where the provider
+    // was already loaded before this screen opened.
+    settingsAsync.whenData((config) {
+      if (config != null && !_loaded) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_loaded) _loadFromConfig(config);
+        });
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('settingsTitle'))),
@@ -206,6 +211,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
+            key: ValueKey('provider-$_providerType'),
             initialValue: _providerType,
             decoration:
                 InputDecoration(labelText: context.tr('providerType')),

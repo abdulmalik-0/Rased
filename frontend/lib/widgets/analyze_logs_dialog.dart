@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../screens/chat_screen.dart';
 import '../theme/app_theme.dart';
 
 class AnalyzeLogsDialog extends ConsumerStatefulWidget {
@@ -29,6 +31,7 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
   bool _loading = false;
   bool _started = false;
   bool _saved = false;
+  String? _chatId;
 
   Future<void> _analyze() async {
     final settings = ref.read(settingsProvider).valueOrNull;
@@ -71,7 +74,7 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
 
   Future<void> _saveAnalysis(AnalyzeResult result) async {
     try {
-      await ref.read(apiProvider).upsertChat(
+      final id = await ref.read(apiProvider).upsertChat(
         hostId: widget.hostId,
         title: '🔍 ${widget.container.name}',
         messages: [
@@ -79,8 +82,40 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
           {'role': 'assistant', 'content': result.analysis},
         ],
       );
-      if (mounted) setState(() => _saved = true);
+      if (mounted) setState(() {
+        _saved = true;
+        _chatId = id;
+      });
     } catch (_) {}
+  }
+
+  void _copyAll() {
+    if (_result == null) return;
+    Clipboard.setData(ClipboardData(text: _result!.analysis));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.tr('copied'))),
+    );
+  }
+
+  void _continueInChat() {
+    final nav = Navigator.of(context);
+    nav.pop();
+    nav.push(MaterialPageRoute(
+      builder: (_) => ChatScreen(
+        hostId: widget.hostId,
+        apiUrl: widget.apiUrl,
+        initialChatId: _chatId,
+        initialMessages: _result == null
+            ? null
+            : [
+                {
+                  'role': 'user',
+                  'content': 'Analyze logs: ${widget.container.name}'
+                },
+                {'role': 'assistant', 'content': _result!.analysis},
+              ],
+      ),
+    ));
   }
 
   @override
@@ -124,7 +159,24 @@ class _AnalyzeLogsDialogState extends ConsumerState<AnalyzeLogsDialog> {
               Flexible(child: _buildContent(colors)),
               if (_result != null) ...[
                 const Divider(),
-                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _copyAll,
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: Text(context.tr('copyAll')),
+                    ),
+                    const Spacer(),
+                    FilledButton.icon(
+                      onPressed: _continueInChat,
+                      icon: const Icon(Icons.forum_outlined, size: 16),
+                      label: Text(context.tr('continueInChat')),
+                      style:
+                          FilledButton.styleFrom(backgroundColor: colors.primary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 Text(
                   '${context.tr('modelLabel')}: ${_result!.modelUsed} • '
                   '${context.tr('sanitizedNote')}'
