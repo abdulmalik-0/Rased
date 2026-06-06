@@ -35,7 +35,7 @@ sudo ufw allow 8082/tcp && sudo ufw allow 8002/tcp   # عند الحاجة
 
 ٢) أحضِر المشروع إلى الجهاز الجديد — إمّا **تنزيل من GitHub** (الأسهل، لا حاجة للنقل):
 ```bash
-git clone --depth 1 https://github.com/USER/rased.git ~/rased
+git clone --depth 1 https://github.com/abdulmalik-0/Rased.git ~/rased
 ```
 أو **نسخ من الجهاز المركزي**:
 ```bash

@@ -106,7 +106,7 @@ Manual route — get the code on the new machine (Git clone is easiest, no trans
 needed), then run the installer (it auto-detects the machine IP and writes
 `.env.agent` for you):
 ```bash
-git clone --depth 1 https://github.com/USER/rased.git ~/rased   # or: scp -r ~/rased USER@NEW_IP:~/
+git clone --depth 1 https://github.com/abdulmalik-0/Rased.git ~/rased   # or: scp -r ~/rased USER@NEW_IP:~/
 cd ~/rased && bash scripts/install-agent.sh --central http://CENTRAL_IP:8002 \
   --token <AGENT_TOKEN> --jwt <JWT_SECRET> --id lxc-2 --name "LXC 2"
 sudo ufw allow 8002/tcp  # so the dashboard can manage this agent

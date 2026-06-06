@@ -32,7 +32,7 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
     super.initState();
     final saved = ref.read(sharedPrefsProvider).getString(_repoKey);
     _repoUrl = TextEditingController(
-        text: saved ?? 'https://github.com/USER/rased.git');
+        text: saved ?? 'https://github.com/abdulmalik-0/Rased.git');
   }
 
   @override
@@ -123,7 +123,7 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
         ? 'NEW_MACHINE_IP'
         : _machineIp.text.trim();
     final repo = _repoUrl.text.trim().isEmpty
-        ? 'https://github.com/USER/rased.git'
+        ? 'https://github.com/abdulmalik-0/Rased.git'
         : _repoUrl.text.trim();
 
     final getCmd = _useGit
@@ -169,7 +169,7 @@ class _AddDeviceDialogState extends ConsumerState<AddDeviceDialog> {
 
           if (_useGit) ...[
             _field(colors, _repoUrl, context.tr('agentRepoUrl'),
-                hint: 'https://github.com/USER/rased.git', onChanged: (v) {
+                hint: 'https://github.com/abdulmalik-0/Rased.git', onChanged: (v) {
               ref.read(sharedPrefsProvider).setString(_repoKey, v);
             }),
             const SizedBox(height: 6),
