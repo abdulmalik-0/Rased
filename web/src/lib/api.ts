@@ -2,6 +2,7 @@ import { backendUrl } from './config'
 import type {
   AIProviderConfig,
   AuthSession,
+  DeployPlan,
   Device,
   MetricsPayload,
 } from './types'
@@ -270,6 +271,39 @@ export const api = {
       }),
     )
     return (await r.json()).suggestion ?? ''
+  },
+
+  async planDeploy(opts: {
+    description: string
+    aiConfig: AIProviderConfig
+    lang?: string
+  }): Promise<DeployPlan> {
+    const r = await handle(
+      await fetch(`${backendUrl}/deploy/plan`, {
+        method: 'POST',
+        headers: headers(true),
+        body: JSON.stringify({
+          description: opts.description,
+          ai_config: opts.aiConfig,
+          lang: opts.lang ?? 'en',
+        }),
+      }),
+    )
+    return r.json()
+  },
+
+  async runDeploy(
+    plan: DeployPlan,
+    baseUrl?: string,
+  ): Promise<{ id: string; name: string; status: string }> {
+    const r = await handle(
+      await fetch(`${base(baseUrl)}/deploy/run`, {
+        method: 'POST',
+        headers: headers(true),
+        body: JSON.stringify(plan),
+      }),
+    )
+    return r.json()
   },
 
   async fetchLogs(containerId: string, tail = 200, baseUrl?: string): Promise<string[]> {

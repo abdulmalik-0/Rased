@@ -106,6 +106,16 @@ export interface HistoryPoint {
   host_disk: number | null
 }
 
+export interface DeployPlan {
+  image: string
+  name: string
+  ports: { host: number; container: number }[]
+  volumes: { host: string; container: string }[]
+  env: Record<string, string>
+  restart: string
+  notes: string
+}
+
 export interface AuthSession {
   token: string
   email: string

@@ -56,6 +56,8 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       DIGEST_ENABLED: ${DIGEST_ENABLED:-false}
       DIGEST_HOUR_UTC: ${DIGEST_HOUR_UTC:-8}
+      # AI-assisted container install (admin reviews the plan first). false to disable.
+      ALLOW_CONTAINER_DEPLOY: ${ALLOW_CONTAINER_DEPLOY:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -170,7 +170,12 @@ export default function Dashboard() {
       )}
 
       <AddDeviceDialog open={addOpen} onClose={() => setAddOpen(false)} />
-      <DeployDialog open={deployOpen} onClose={() => setDeployOpen(false)} />
+      <DeployDialog
+        open={deployOpen}
+        onClose={() => setDeployOpen(false)}
+        apiUrl={apiUrl}
+        deviceLabel={deviceName(active)}
+      />
       {cfgOpen && (
         <DeviceConfigDialog
           open={cfgOpen}

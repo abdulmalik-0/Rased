@@ -162,6 +162,19 @@ const en: Record<string, string> = {
   linkLabel: 'Label',
   logsTitle: 'Logs',
   noLogs: 'No logs',
+  deployPlanBtn: 'Plan it',
+  deployInstall: 'Install',
+  deployInstalling: 'Installing…',
+  deployInstalled: 'Installed — running ✓',
+  deployOn: 'on',
+  deployWarning: 'This runs the container on your server. Review the plan, then install.',
+  planImage: 'Image',
+  planPorts: 'Ports',
+  planVolumes: 'Volumes',
+  planEnv: 'Env',
+  planNotes: 'Notes',
+  equivalentCmd: 'Equivalent command',
+  deployReplan: 'New plan',
 }
 
 const ar: Record<string, string> = {
@@ -319,6 +332,19 @@ const ar: Record<string, string> = {
   linkLabel: 'الاسم',
   logsTitle: 'السجلات',
   noLogs: 'لا توجد سجلات',
+  deployPlanBtn: 'خطّط',
+  deployInstall: 'ثبّت',
+  deployInstalling: 'يثبّت…',
+  deployInstalled: 'تم التثبيت — يعمل ✓',
+  deployOn: 'على',
+  deployWarning: 'هذا يشغّل الحاوية على سيرفرك. راجِع الخطّة ثم ثبّت.',
+  planImage: 'الصورة',
+  planPorts: 'المنافذ',
+  planVolumes: 'الأقراص',
+  planEnv: 'المتغيّرات',
+  planNotes: 'ملاحظات',
+  equivalentCmd: 'الأمر المكافئ',
+  deployReplan: 'خطّة جديدة',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }

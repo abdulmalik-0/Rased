@@ -125,6 +125,38 @@ class DeploySuggestResponse(BaseModel):
     model_used: str
 
 
+class DeployPlanRequest(BaseModel):
+    description: str
+    ai_config: AIProviderConfig
+    lang: str = "en"
+
+
+class PortMap(BaseModel):
+    host: int
+    container: int
+
+
+class VolumeMap(BaseModel):
+    host: str
+    container: str
+
+
+class DeployPlan(BaseModel):
+    image: str
+    name: str = ""
+    ports: list[PortMap] = Field(default_factory=list)
+    volumes: list[VolumeMap] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    restart: str = "unless-stopped"
+    notes: str = ""
+
+
+class DeployRunResponse(BaseModel):
+    id: str
+    name: str
+    status: str
+
+
 class ContainerActionRequest(BaseModel):
     action: str = Field(..., description="restart | stop | start")
 

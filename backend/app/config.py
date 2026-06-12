@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     digest_enabled: bool = False
     digest_hour_utc: int = 8
 
+    # --- AI-assisted container deploy (admin reviews the plan, then installs) ---
+    # Set ALLOW_CONTAINER_DEPLOY=false to disable the "Install" button entirely.
+    allow_container_deploy: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

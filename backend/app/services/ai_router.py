@@ -214,6 +214,53 @@ async def suggest_deploy(
     )
 
 
+DEPLOY_PLAN_PROMPT = """You convert a service request into a STRUCTURED Docker plan.
+Return ONLY a JSON object (no markdown, no prose, no code fences) with exactly this shape:
+{
+  "image": "owner/image:tag",
+  "name": "container-name",
+  "ports": [{"host": 8080, "container": 80}],
+  "volumes": [{"host": "named_volume", "container": "/data"}],
+  "env": {"KEY": "value"},
+  "restart": "unless-stopped",
+  "notes": "one short line: which URL/port to open and any first-run note"
+}
+Use a well-known official image, sensible host ports (NEVER 8002 or 8082), a named
+volume for persistent data, and only essential env vars. Output JSON only."""
+
+
+def _extract_json(text: str) -> dict:
+    import json
+    import re
+
+    t = re.sub(r"```(?:json)?", "", text).strip().strip("`").strip()
+    start, end = t.find("{"), t.rfind("}")
+    if start != -1 and end != -1:
+        t = t[start : end + 1]
+    try:
+        data = json.loads(t)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"AI did not return valid JSON: {text[:200]}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("AI plan was not a JSON object")
+    return data
+
+
+async def plan_deploy(
+    description: str, ai_config: AIProviderConfig, lang: str = "en"
+) -> dict:
+    """Ask the AI for a STRUCTURED docker plan (for review + one-click install)."""
+    raw = await _chat(
+        [
+            {"role": "system", "content": DEPLOY_PLAN_PROMPT + _lang_directive(lang)},
+            {"role": "user", "content": f"Service to deploy: {description.strip()}"},
+        ],
+        ai_config,
+        temperature=0.1,
+    )
+    return _extract_json(raw)
+
+
 async def daily_digest(summary: str, ai_config: AIProviderConfig) -> str:
     return await _chat(
         [
