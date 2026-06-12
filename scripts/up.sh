@@ -10,11 +10,11 @@ if [ ! -f ".env" ]; then
   cp .env.example .env
 fi
 
-if [ -f "frontend/build/web/index.html" ]; then
+if [ -f "web/dist/index.html" ]; then
   # nginx (uid 101) must be able to read the built files.
-  chmod -R a+rX frontend/build/web 2>/dev/null || true
+  chmod -R a+rX web/dist 2>/dev/null || true
 else
-  echo "WARNING: frontend/build/web not found. Build the Flutter web app first (see README)."
+  echo "WARNING: web/dist not found. Build the UI first:  cd web && npm install && npm run build"
 fi
 
 echo "==> Starting Rased (API:8002, UI:8082)..."

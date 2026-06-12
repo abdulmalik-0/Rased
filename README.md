@@ -66,12 +66,12 @@ docker-compose.agent.yml  extra machine: agent only
 
 ## Quick start (single host)
 
-### 1. Build the Flutter web app (once)
+### 1. Build the web UI (once)
 
-Only the backend URL is baked in (auth is via login):
+The UI is React + Tailwind + Tremor (in `web/`). Only the backend URL is baked in:
 ```bash
-cd frontend && flutter pub get
-flutter build web --no-tree-shake-icons --dart-define=BACKEND_URL=http://YOUR_IP:8002
+cd web && npm install
+VITE_BACKEND_URL=http://YOUR_IP:8002 npm run build   # outputs web/dist
 cd ..
 ```
 

@@ -11,10 +11,11 @@
 
 ## أول تثبيت (الجهاز المركزي) — أمر واحد
 
-١) تأكد أن واجهة الويب مبنية في `frontend/build/web` (ابنها على جهازك ثم انقل المجلد،
-أو ابنها على السيرفر إن كان Flutter مثبتاً):
+١) ابنِ واجهة الويب (React) في `web/dist` (على جهازك ثم انقل المجلد، أو على السيرفر إن كان Node مثبتاً):
 ```bash
-flutter build web --no-tree-shake-icons --dart-define=BACKEND_URL=http://YOUR_IP:8002
+cd web && npm install
+VITE_BACKEND_URL=http://YOUR_IP:8002 npm run build
+cd ..
 ```
 
 ٢) من مجلد المشروع على السيرفر، نفّذ المثبّت. يسألك عن الـ IP فقط، ويولّد المفاتيح

@@ -23,11 +23,11 @@ interface Item {
 
 const ITEMS: Item[] = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' },
-  { to: '/history', icon: LineChart, key: 'history', soon: true },
-  { to: '/chat', icon: MessageSquare, key: 'askAi', soon: true },
-  { to: '/settings', icon: Settings, key: 'settings', soon: true },
+  { to: '/history', icon: LineChart, key: 'history' },
+  { to: '/chat', icon: MessageSquare, key: 'askAi' },
+  { to: '/settings', icon: Settings, key: 'settings' },
   { to: '/users', icon: Users, key: 'users', admin: true },
-  { to: '/help', icon: HelpCircle, key: 'help', soon: true },
+  { to: '/help', icon: HelpCircle, key: 'help' },
 ]
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

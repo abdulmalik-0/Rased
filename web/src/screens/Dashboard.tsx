@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Loader2, PlusSquare, RefreshCw, Rocket, Settings2 } from 'lucide-react'
 import { AlertsCard } from '../components/AlertsCard'
 import { ContainerCard } from '../components/ContainerCard'
 import { DeviceSelector } from '../components/DeviceSelector'
 import { HostCard } from '../components/HostCard'
 import { UpsCard } from '../components/UpsCard'
+import { AddDeviceDialog } from '../components/dialogs/AddDeviceDialog'
+import { DeployDialog } from '../components/dialogs/DeployDialog'
+import { DeviceConfigDialog } from '../components/dialogs/DeviceConfigDialog'
 import { api } from '../lib/api'
 import { backendUrl } from '../lib/config'
 import { useAuth } from '../lib/auth'
@@ -32,10 +35,14 @@ export default function Dashboard() {
   const [table, setTable] = useState<Device[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [links, setLinks] = useState<Record<string, { url: string; label: string }>>({})
+  const [addOpen, setAddOpen] = useState(false)
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [deployOpen, setDeployOpen] = useState(false)
 
-  useEffect(() => {
+  const loadDevices = useCallback(() => {
     api.getDevices().then(setTable).catch(() => {})
   }, [])
+  useEffect(loadDevices, [loadDevices])
 
   const devices = useMemo(() => {
     const byId: Record<string, Device> = {}
@@ -59,7 +66,7 @@ export default function Dashboard() {
   const payload = metrics[active.host_id]
   const online = !!payload
 
-  useEffect(() => {
+  const loadLinks = useCallback(() => {
     api
       .getLinks(active.host_id)
       .then((rows) => {
@@ -70,12 +77,9 @@ export default function Dashboard() {
       })
       .catch(() => setLinks({}))
   }, [active.host_id])
+  useEffect(loadLinks, [loadLinks])
 
   async function handleAction(containerId: string, action: string) {
-    if (action === 'logs') {
-      toast('Logs viewer — coming in the next phase')
-      return
-    }
     if (!window.confirm(`${t(action)}?`)) return
     try {
       await api.containerAction(containerId, action, apiUrl)
@@ -97,13 +101,9 @@ export default function Dashboard() {
           </h1>
           <p className="text-sm text-text-secondary">{deviceName(active)}</p>
         </div>
-        <div className="ms-auto flex items-center gap-2">
+        <div className="ms-auto flex flex-wrap items-center gap-2">
           <span
-            className={`chip ${
-              online
-                ? 'bg-accent/12 text-accent'
-                : 'bg-danger/12 text-danger'
-            }`}
+            className={`chip ${online ? 'bg-accent/12 text-accent' : 'bg-danger/12 text-danger'}`}
           >
             <span
               className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-accent' : 'bg-danger'}`}
@@ -116,13 +116,22 @@ export default function Dashboard() {
             selected={active.host_id}
             onSelect={setSelected}
           />
-          <button
-            onClick={refresh}
-            className="btn-ghost border border-line/70 bg-surface"
-            title={t('refresh')}
-          >
+          {admin && (
+            <>
+              <IconBtn title={t('deviceSettings')} onClick={() => setCfgOpen(true)}>
+                <Settings2 size={16} />
+              </IconBtn>
+              <IconBtn title={t('addDevice')} onClick={() => setAddOpen(true)}>
+                <PlusSquare size={16} />
+              </IconBtn>
+              <IconBtn title={t('deployTitle')} onClick={() => setDeployOpen(true)}>
+                <Rocket size={16} />
+              </IconBtn>
+            </>
+          )}
+          <IconBtn title={t('refresh')} onClick={refresh}>
             <RefreshCw size={16} />
-          </button>
+          </IconBtn>
         </div>
       </div>
 
@@ -148,15 +157,44 @@ export default function Dashboard() {
                   key={c.id}
                   container={c}
                   apiUrl={apiUrl}
+                  hostId={active.host_id}
                   isAdmin={admin}
                   customLink={links[c.name]}
                   onAction={(a) => handleAction(c.id, a)}
+                  reloadLinks={loadLinks}
                 />
               ))}
             </div>
           )}
         </div>
       )}
+
+      <AddDeviceDialog open={addOpen} onClose={() => setAddOpen(false)} />
+      <DeployDialog open={deployOpen} onClose={() => setDeployOpen(false)} />
+      {cfgOpen && (
+        <DeviceConfigDialog
+          open={cfgOpen}
+          onClose={() => setCfgOpen(false)}
+          device={active}
+          onSaved={loadDevices}
+        />
+      )}
     </div>
+  )
+}
+
+function IconBtn(props: {
+  title: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      title={props.title}
+      onClick={props.onClick}
+      className="btn-ghost border border-line/70 bg-surface"
+    >
+      {props.children}
+    </button>
   )
 }

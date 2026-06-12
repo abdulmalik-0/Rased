@@ -54,10 +54,10 @@ else
 fi
 
 # 3) Permissions for the prebuilt UI (nginx uid 101 must read it) ------------
-if [ -f frontend/build/web/index.html ]; then
-  chmod -R a+rX frontend/build/web 2>/dev/null || true
+if [ -f web/dist/index.html ]; then
+  chmod -R a+rX web/dist 2>/dev/null || true
 else
-  warn "frontend/build/web not found — the UI will be empty until the built web app is added."
+  warn "web/dist not found — build the UI first:  cd web && npm install && npm run build"
 fi
 
 # 4) Start --------------------------------------------------------------------
