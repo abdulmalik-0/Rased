@@ -26,7 +26,7 @@ const ITEMS: Item[] = [
   { to: '/history', icon: LineChart, key: 'history', soon: true },
   { to: '/chat', icon: MessageSquare, key: 'askAi', soon: true },
   { to: '/settings', icon: Settings, key: 'settings', soon: true },
-  { to: '/users', icon: Users, key: 'users', soon: true, admin: true },
+  { to: '/users', icon: Users, key: 'users', admin: true },
   { to: '/help', icon: HelpCircle, key: 'help', soon: true },
 ]
 
