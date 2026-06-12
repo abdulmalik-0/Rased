@@ -1,0 +1,236 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  ExternalLink,
+  Link2,
+  MoreVertical,
+  Pencil,
+  Sparkles,
+  Terminal,
+} from 'lucide-react'
+import { copyText } from '../lib/clipboard'
+import { useI18n } from '../lib/i18n'
+import { useToast } from '../lib/toast'
+import type { ContainerMetrics } from '../lib/types'
+
+interface Props {
+  container: ContainerMetrics
+  apiUrl: string
+  isAdmin: boolean
+  customLink?: { url: string; label: string }
+  onAction?: (action: string) => void
+  onEditLink?: () => void
+  onAnalyze?: () => void
+}
+
+const statusColor = (s: string) =>
+  s === 'running'
+    ? 'bg-accent'
+    : s === 'paused'
+      ? 'bg-warning'
+      : s === 'exited' || s === 'dead'
+        ? 'bg-danger'
+        : 'bg-text-secondary'
+
+export function ContainerCard({
+  container: c,
+  apiUrl,
+  isAdmin,
+  customLink,
+  onAction,
+  onEditLink,
+  onAnalyze,
+}: Props) {
+  const { t } = useI18n()
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const running = c.status === 'running'
+  const host = (() => {
+    try {
+      return new URL(apiUrl).hostname
+    } catch {
+      return ''
+    }
+  })()
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const openUrl = (url: string) => {
+    if (!window.open(url, '_blank')) toast(`${t('cannotOpen')}: ${url}`)
+  }
+  const copyName = () => toast(copyText(c.name) ? t('copied') : t('copyFailed'))
+
+  return (
+    <div className="flex flex-col rounded-xl border border-line bg-surface p-4">
+      <div className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${statusColor(c.status)}`} />
+        <span
+          className="flex-1 truncate font-semibold text-text-primary"
+          title={c.name}
+        >
+          {c.name}
+        </span>
+        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase text-text-secondary">
+          {c.status}
+        </span>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="rounded p-1 text-text-secondary hover:bg-elevated"
+          >
+            <MoreVertical size={18} />
+          </button>
+          {open && (
+            <div className="absolute end-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-xl">
+              <MenuItem
+                icon={<ExternalLink size={15} />}
+                label={t('copyName')}
+                onClick={() => {
+                  copyName()
+                  setOpen(false)
+                }}
+              />
+              {onAction && (
+                <MenuItem
+                  icon={<Terminal size={15} />}
+                  label={t('viewLogs')}
+                  onClick={() => {
+                    onAction('logs')
+                    setOpen(false)
+                  }}
+                />
+              )}
+              {isAdmin && onAction && (
+                <>
+                  <MenuItem
+                    label={t('restart')}
+                    onClick={() => {
+                      onAction('restart')
+                      setOpen(false)
+                    }}
+                  />
+                  {running ? (
+                    <MenuItem
+                      label={t('stop')}
+                      onClick={() => {
+                        onAction('stop')
+                        setOpen(false)
+                      }}
+                    />
+                  ) : (
+                    <MenuItem
+                      label={t('start')}
+                      onClick={() => {
+                        onAction('start')
+                        setOpen(false)
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-1 truncate text-xs text-text-secondary">{c.image}</div>
+
+      {(c.ports.length > 0 || customLink?.url || isAdmin) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {customLink?.url && (
+            <Chip
+              icon={<Link2 size={13} />}
+              label={customLink.label || customLink.url}
+              tone="accent"
+              onClick={() => openUrl(customLink.url)}
+            />
+          )}
+          {c.ports.map((p) => (
+            <Chip
+              key={p}
+              icon={<ExternalLink size={13} />}
+              label={`:${p}`}
+              tone="primary"
+              onClick={() => host && openUrl(`http://${host}:${p}`)}
+            />
+          ))}
+          {isAdmin && onEditLink && (
+            <Chip icon={<Pencil size={13} />} label={t('editLink')} onClick={onEditLink} />
+          )}
+        </div>
+      )}
+
+      {running && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Stat label={t('cpu')} value={`${c.cpu_percent.toFixed(1)}%`} />
+          <Stat
+            label={t('ram')}
+            value={`${c.memory_percent.toFixed(0)}% · ${c.memory_usage_mb.toFixed(0)}/${c.memory_limit_mb.toFixed(0)}MB`}
+          />
+          {c.restart_count > 0 && (
+            <Stat label={t('restarts')} value={`${c.restart_count}`} />
+          )}
+        </div>
+      )}
+
+      {onAnalyze && (
+        <button
+          onClick={onAnalyze}
+          className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-primary py-2 text-sm font-medium text-primary hover:bg-primary/10"
+        >
+          <Sparkles size={16} /> {t('analyzeLogs')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function MenuItem(props: { icon?: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={props.onClick}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm text-text-primary hover:bg-elevated"
+    >
+      {props.icon}
+      {props.label}
+    </button>
+  )
+}
+
+function Chip(props: {
+  icon: React.ReactNode
+  label: string
+  tone?: 'primary' | 'accent'
+  onClick: () => void
+}) {
+  const color =
+    props.tone === 'accent'
+      ? 'text-accent'
+      : props.tone === 'primary'
+        ? 'text-primary'
+        : 'text-text-secondary'
+  return (
+    <button
+      onClick={props.onClick}
+      className={`inline-flex items-center gap-1 rounded-md bg-elevated px-2 py-1 text-[11px] ${color} hover:opacity-80`}
+    >
+      {props.icon}
+      <span className="max-w-[160px] truncate">{props.label}</span>
+    </button>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rounded-md bg-elevated px-2 py-1 text-xs text-text-primary">
+      {label}: {value}
+    </span>
+  )
+}
