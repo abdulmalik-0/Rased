@@ -24,12 +24,21 @@ interface Props {
 
 const statusColor = (s: string) =>
   s === 'running'
-    ? 'bg-accent'
+    ? 'bg-accent shadow-[0_0_8px] shadow-accent/60'
     : s === 'paused'
       ? 'bg-warning'
       : s === 'exited' || s === 'dead'
         ? 'bg-danger'
         : 'bg-text-secondary'
+
+const badgeTone = (s: string) =>
+  s === 'running'
+    ? 'bg-accent/12 text-accent'
+    : s === 'paused'
+      ? 'bg-warning/12 text-warning'
+      : s === 'exited' || s === 'dead'
+        ? 'bg-danger/12 text-danger'
+        : 'bg-elevated text-text-secondary'
 
 export function ContainerCard({
   container: c,
@@ -68,7 +77,7 @@ export function ContainerCard({
   const copyName = () => toast(copyText(c.name) ? t('copied') : t('copyFailed'))
 
   return (
-    <div className="flex flex-col rounded-xl border border-line bg-surface p-4">
+    <div className="card card-hover flex flex-col p-4">
       <div className="flex items-center gap-2">
         <span className={`h-2.5 w-2.5 rounded-full ${statusColor(c.status)}`} />
         <span
@@ -77,7 +86,9 @@ export function ContainerCard({
         >
           {c.name}
         </span>
-        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase text-text-secondary">
+        <span
+          className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${badgeTone(c.status)}`}
+        >
           {c.status}
         </span>
         <div className="relative" ref={menuRef}>

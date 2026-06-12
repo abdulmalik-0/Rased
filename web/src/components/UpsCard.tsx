@@ -7,20 +7,25 @@ export function UpsCard({ ups }: { ups: UpsStatus }) {
   if (!ups.connected) return null
   const onBattery = ups.on_battery
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-4">
-      {onBattery ? (
-        <BatteryCharging className="text-warning" />
-      ) : (
-        <Plug className="text-accent" />
-      )}
-      <div>
-        <div className="font-semibold text-text-primary">{t('upsTitle')}</div>
-        <div className="text-sm text-text-secondary">
+    <div className="card flex items-center gap-3 p-4">
+      <span
+        className={`grid h-9 w-9 place-items-center rounded-xl ${
+          onBattery ? 'bg-warning/10 text-warning' : 'bg-accent/10 text-accent'
+        }`}
+      >
+        {onBattery ? <BatteryCharging size={18} /> : <Plug size={18} />}
+      </span>
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-text-primary">{t('upsTitle')}</div>
+        <div className="text-xs text-text-secondary">
           {onBattery ? t('upsBattery') : t('upsOnline')}
-          {ups.battery_charge_percent != null &&
-            ` · ${t('battery')} ${Math.round(ups.battery_charge_percent)}%`}
         </div>
       </div>
+      {ups.battery_charge_percent != null && (
+        <span className="chip bg-elevated text-text-secondary">
+          {t('battery')} {Math.round(ups.battery_charge_percent)}%
+        </span>
+      )}
     </div>
   )
 }

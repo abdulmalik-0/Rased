@@ -1,4 +1,4 @@
-import { Cpu } from 'lucide-react'
+import { Cpu, Gauge } from 'lucide-react'
 import { useI18n } from '../lib/i18n'
 import type { HostStats } from '../lib/types'
 import { StatGauge, TempGauge } from './Gauge'
@@ -6,15 +6,20 @@ import { StatGauge, TempGauge } from './Gauge'
 export function HostCard({ host, name }: { host: HostStats; name: string }) {
   const { t } = useI18n()
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Cpu className="text-primary" size={18} />
-        <span className="font-semibold text-text-primary">
-          {t('hostTitle')} · {name}
+    <div className="card p-5">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Cpu size={18} />
         </span>
+        <div className="flex-1">
+          <div className="text-sm font-semibold text-text-primary">
+            {t('hostTitle')}
+          </div>
+          <div className="text-xs text-text-secondary">{name}</div>
+        </div>
         {host.load_avg_1m != null && (
-          <span className="ms-auto text-xs text-text-secondary">
-            {t('load')}: {host.load_avg_1m.toFixed(2)}
+          <span className="chip bg-elevated text-text-secondary">
+            <Gauge size={13} /> {t('load')} {host.load_avg_1m.toFixed(2)}
           </span>
         )}
       </div>
@@ -25,7 +30,7 @@ export function HostCard({ host, name }: { host: HostStats; name: string }) {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-5">
+          <div className="flex flex-wrap justify-center gap-6 sm:justify-start">
             <StatGauge
               label={t('hostCpu')}
               percent={host.cpu_percent}
@@ -47,11 +52,11 @@ export function HostCard({ host, name }: { host: HostStats; name: string }) {
           </div>
 
           {host.temperatures.length > 0 && (
-            <div className="mt-4">
-              <div className="mb-2 text-xs text-text-secondary">
+            <div className="mt-5 border-t border-line/60 pt-4">
+              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-text-secondary">
                 {t('temperatures')}
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-4">
                 {host.temperatures.map((tp) => (
                   <TempGauge
                     key={tp.label}

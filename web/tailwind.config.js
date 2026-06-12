@@ -75,7 +75,24 @@ export default {
           },
         },
       },
+      fontFamily: {
+        sans: [
+          'Inter Variable',
+          'Cairo Variable',
+          'system-ui',
+          'sans-serif',
+        ],
+      },
+      keyframes: {
+        'fade-in': {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: { 'fade-in': 'fade-in 0.25s ease-out' },
       boxShadow: {
+        card: '0 1px 2px 0 rgb(0 0 0 / 0.06), 0 8px 24px -12px rgb(0 0 0 / 0.30)',
+        cardHover: '0 1px 2px 0 rgb(0 0 0 / 0.08), 0 16px 40px -16px rgb(0 0 0 / 0.45)',
         'tremor-input': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
         'tremor-card': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
         'tremor-dropdown': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',

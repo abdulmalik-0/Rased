@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { AlertsCard } from '../components/AlertsCard'
 import { ContainerCard } from '../components/ContainerCard'
-import { DeviceTabs } from '../components/DeviceTabs'
+import { DeviceSelector } from '../components/DeviceSelector'
 import { HostCard } from '../components/HostCard'
-import { Topbar } from '../components/Topbar'
 import { UpsCard } from '../components/UpsCard'
 import { api } from '../lib/api'
 import { backendUrl } from '../lib/config'
@@ -89,47 +89,74 @@ export default function Dashboard() {
   const liveIds = new Set(Object.keys(metrics))
 
   return (
-    <div className="flex h-full flex-col">
-      <Topbar online={online} onRefresh={refresh} />
-      <DeviceTabs
-        devices={devices}
-        liveIds={liveIds}
-        selected={active.host_id}
-        onSelect={setSelected}
-      />
-
-      <div className="flex-1 overflow-y-auto p-4">
-        {!payload ? (
-          <div className="flex h-full items-center justify-center text-text-secondary">
-            {t('waitingMetrics')}
-          </div>
-        ) : (
-          <div className="mx-auto max-w-[1400px] space-y-4">
-            <HostCard host={payload.host} name={deviceName(active)} />
-            <AlertsCard alerts={payload.alerts} />
-            <UpsCard ups={payload.ups} />
-
-            {payload.containers.length === 0 ? (
-              <div className="py-10 text-center text-text-secondary">
-                {t('noContainers')}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {payload.containers.map((c) => (
-                  <ContainerCard
-                    key={c.id}
-                    container={c}
-                    apiUrl={apiUrl}
-                    isAdmin={admin}
-                    customLink={links[c.name]}
-                    onAction={(a) => handleAction(c.id, a)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+    <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-text-primary">
+            {t('overview')}
+          </h1>
+          <p className="text-sm text-text-secondary">{deviceName(active)}</p>
+        </div>
+        <div className="ms-auto flex items-center gap-2">
+          <span
+            className={`chip ${
+              online
+                ? 'bg-accent/12 text-accent'
+                : 'bg-danger/12 text-danger'
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-accent' : 'bg-danger'}`}
+            />
+            {online ? t('agentOnline') : t('agentOffline')}
+          </span>
+          <DeviceSelector
+            devices={devices}
+            liveIds={liveIds}
+            selected={active.host_id}
+            onSelect={setSelected}
+          />
+          <button
+            onClick={refresh}
+            className="btn-ghost border border-line/70 bg-surface"
+            title={t('refresh')}
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </div>
+
+      {!payload ? (
+        <div className="card grid place-items-center gap-3 py-20 text-text-secondary">
+          <Loader2 className="animate-spin text-primary" size={28} />
+          {t('waitingMetrics')}
+        </div>
+      ) : (
+        <div className="animate-fade-in space-y-5">
+          <HostCard host={payload.host} name={deviceName(active)} />
+          <AlertsCard alerts={payload.alerts} />
+          <UpsCard ups={payload.ups} />
+
+          {payload.containers.length === 0 ? (
+            <div className="card py-12 text-center text-text-secondary">
+              {t('noContainers')}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {payload.containers.map((c) => (
+                <ContainerCard
+                  key={c.id}
+                  container={c}
+                  apiUrl={apiUrl}
+                  isAdmin={admin}
+                  customLink={links[c.name]}
+                  onAction={(a) => handleAction(c.id, a)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

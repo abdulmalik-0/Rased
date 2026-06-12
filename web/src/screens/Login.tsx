@@ -35,65 +35,72 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-full flex items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-7 shadow-xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="text-primary" size={26} />
-            <span className="text-xl font-bold text-text-primary">{t('appTitle')}</span>
+    <div className="grid min-h-full place-items-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-xl shadow-primary/25">
+            <Activity className="text-white" size={28} />
           </div>
-          <button
-            onClick={toggle}
-            className="rounded-lg p-2 text-text-secondary hover:bg-elevated"
-            title={t('language')}
-          >
-            <Languages size={18} />
-          </button>
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+            {t('appTitle')}
+          </h1>
+          <p className="text-sm text-text-secondary">Server monitoring</p>
         </div>
 
-        {pending && (
-          <div className="mb-4 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent">
-            {t('pendingApproval')}
+        <div className="card animate-fade-in p-7">
+          <div className="mb-5 flex items-center justify-between">
+            <span className="text-base font-semibold text-text-primary">
+              {mode === 'login' ? t('signIn') : t('register')}
+            </span>
+            <button onClick={toggle} className="btn-ghost" title={t('language')}>
+              <Languages size={18} />
+            </button>
           </div>
-        )}
-        {error && (
-          <div className="mb-4 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-            {error}
-          </div>
-        )}
 
-        <form onSubmit={submit} className="space-y-3">
-          <Field
-            label={t('email')}
-            type="email"
-            value={email}
-            onChange={setEmail}
-            autoFocus
-          />
-          <Field
-            label={t('password')}
-            type="password"
-            value={password}
-            onChange={setPassword}
-          />
+          {pending && (
+            <div className="mb-4 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5 text-sm text-accent">
+              {t('pendingApproval')}
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5 text-sm text-danger">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={submit} className="space-y-4">
+            <Field
+              label={t('email')}
+              type="email"
+              value={email}
+              onChange={setEmail}
+              autoFocus
+            />
+            <Field
+              label={t('password')}
+              type="password"
+              value={password}
+              onChange={setPassword}
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full rounded-xl bg-primary py-2.5 font-semibold text-white shadow-lg shadow-primary/20 transition hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+            >
+              {busy ? '…' : mode === 'login' ? t('signIn') : t('register')}
+            </button>
+          </form>
+
           <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-primary py-2.5 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            onClick={() => {
+              setMode((m) => (m === 'login' ? 'register' : 'login'))
+              setError(null)
+            }}
+            className="mt-5 w-full text-center text-sm text-text-secondary transition hover:text-primary"
           >
-            {busy ? '…' : mode === 'login' ? t('signIn') : t('register')}
+            {mode === 'login' ? t('haveNoAccount') : t('haveAccount')}
           </button>
-        </form>
-
-        <button
-          onClick={() => {
-            setMode((m) => (m === 'login' ? 'register' : 'login'))
-            setError(null)
-          }}
-          className="mt-4 w-full text-center text-sm text-text-secondary hover:text-primary"
-        >
-          {mode === 'login' ? t('haveNoAccount') : t('haveAccount')}
-        </button>
+        </div>
       </div>
     </div>
   )
@@ -108,14 +115,16 @@ function Field(props: {
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-text-secondary">{props.label}</span>
+      <span className="mb-1.5 block text-xs font-medium text-text-secondary">
+        {props.label}
+      </span>
       <input
         type={props.type}
         value={props.value}
         autoFocus={props.autoFocus}
         onChange={(e) => props.onChange(e.target.value)}
         required
-        className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-text-primary outline-none focus:border-primary"
+        className="w-full rounded-xl border border-line bg-bg/60 px-3.5 py-2.5 text-text-primary outline-none ring-primary/30 transition focus:border-primary focus:ring-2"
       />
     </label>
   )
