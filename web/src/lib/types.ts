@@ -116,6 +116,13 @@ export interface DeployPlan {
   notes: string
 }
 
+export interface DeployResult {
+  id: string
+  name: string
+  status: string
+  ports: { host: number; container: number }[]
+}
+
 export interface AuthSession {
   token: string
   email: string

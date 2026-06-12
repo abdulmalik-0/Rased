@@ -3,6 +3,7 @@ import type {
   AIProviderConfig,
   AuthSession,
   DeployPlan,
+  DeployResult,
   Device,
   MetricsPayload,
 } from './types'
@@ -292,15 +293,23 @@ export const api = {
     return r.json()
   },
 
-  async runDeploy(
-    plan: DeployPlan,
-    baseUrl?: string,
-  ): Promise<{ id: string; name: string; status: string }> {
+  async runDeploy(plan: DeployPlan, baseUrl?: string): Promise<DeployResult> {
     const r = await handle(
       await fetch(`${base(baseUrl)}/deploy/run`, {
         method: 'POST',
         headers: headers(true),
         body: JSON.stringify(plan),
+      }),
+    )
+    return r.json()
+  },
+
+  async runImage(image: string, name = '', baseUrl?: string): Promise<DeployResult> {
+    const r = await handle(
+      await fetch(`${base(baseUrl)}/deploy/image`, {
+        method: 'POST',
+        headers: headers(true),
+        body: JSON.stringify({ image, name }),
       }),
     )
     return r.json()

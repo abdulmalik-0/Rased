@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  ExternalLink,
   Loader2,
   Rocket,
   Sparkles,
@@ -12,7 +13,7 @@ import { api } from '../../lib/api'
 import { useI18n } from '../../lib/i18n'
 import { useSettings } from '../../lib/settings'
 import { useCopy } from '../../lib/useCopy'
-import type { DeployPlan } from '../../lib/types'
+import type { DeployPlan, DeployResult } from '../../lib/types'
 
 function dockerRun(p: DeployPlan): string {
   const parts = ['docker run -d']
@@ -39,43 +40,71 @@ export function DeployDialog({
   const { t, lang } = useI18n()
   const { config } = useSettings()
   const copy = useCopy()
+  const [mode, setMode] = useState<'image' | 'describe'>('image')
+  const [image, setImage] = useState('')
   const [desc, setDesc] = useState('')
   const [plan, setPlan] = useState<DeployPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [planning, setPlanning] = useState(false)
-  const [installing, setInstalling] = useState(false)
-  const [installed, setInstalled] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<DeployResult | null>(null)
+
+  const host = (() => {
+    try {
+      return new URL(apiUrl).hostname
+    } catch {
+      return ''
+    }
+  })()
+
+  function switchMode(m: 'image' | 'describe') {
+    setMode(m)
+    setError(null)
+    setResult(null)
+    setPlan(null)
+  }
+
+  async function installImage() {
+    if (!image.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setResult(await api.runImage(image.trim(), '', apiUrl))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function doPlan() {
-    if (!desc.trim() || planning) return
+    if (!desc.trim() || busy) return
     if (!config || !config.model_name) {
       setError(t('configureFirst'))
       return
     }
-    setPlanning(true)
+    setBusy(true)
     setError(null)
     setPlan(null)
-    setInstalled(null)
+    setResult(null)
     try {
       setPlan(await api.planDeploy({ description: desc.trim(), aiConfig: config, lang }))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
-      setPlanning(false)
+      setBusy(false)
     }
   }
 
-  async function doInstall() {
-    if (!plan || installing) return
-    setInstalling(true)
+  async function installPlan() {
+    if (!plan || busy) return
+    setBusy(true)
     setError(null)
     try {
-      const r = await api.runDeploy(plan, apiUrl)
-      setInstalled(`${r.name} · ${r.status}`)
+      setResult(await api.runDeploy(plan, apiUrl))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
-      setInstalling(false)
+      setBusy(false)
     }
   }
 
@@ -87,7 +116,51 @@ export function DeployDialog({
       icon={<Rocket className="text-primary" size={18} />}
       title={t('deployTitle')}
     >
-      {!plan ? (
+      <div className="mb-4 flex rounded-xl border border-line/70 bg-surface p-0.5">
+        {(['image', 'describe'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => switchMode(m)}
+            className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${
+              mode === m
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {m === 'image' ? t('deployByImage') : t('deployDescribe')}
+          </button>
+        ))}
+      </div>
+
+      {result ? (
+        <Result result={result} host={host} okLabel={t('deployInstalled')} openLabel={t('openAt')} />
+      ) : mode === 'image' ? (
+        <>
+          <div className="flex gap-2">
+            <input
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && installImage()}
+              placeholder={t('deployImageHint')}
+              dir="ltr"
+              className="flex-1 rounded-xl border border-line bg-bg px-3.5 py-2.5 font-mono text-sm text-text-primary outline-none focus:border-primary"
+            />
+            <button
+              onClick={installImage}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <Rocket size={16} />}
+              {t('deployImageBtn')}
+            </button>
+          </div>
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            {t('deployWarning')} ({t('deployOn')} {deviceLabel})
+          </div>
+          {error && <div className="mt-2 text-sm text-danger">{error}</div>}
+        </>
+      ) : !plan ? (
         <>
           <p className="mb-3 text-sm text-text-secondary">{t('deployIntro')}</p>
           <div className="flex gap-2">
@@ -100,14 +173,10 @@ export function DeployDialog({
             />
             <button
               onClick={doPlan}
-              disabled={planning}
+              disabled={busy}
               className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {planning ? (
-                <Loader2 className="animate-spin" size={16} />
-              ) : (
-                <Sparkles size={16} />
-              )}
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
               {t('deployPlanBtn')}
             </button>
           </div>
@@ -133,9 +202,7 @@ export function DeployDialog({
             {Object.keys(plan.env).length > 0 && (
               <Row label={t('planEnv')} value={Object.keys(plan.env).join(', ')} />
             )}
-            {plan.notes && (
-              <p className="pt-1 text-xs text-text-secondary">{plan.notes}</p>
-            )}
+            {plan.notes && <p className="pt-1 text-xs text-text-secondary">{plan.notes}</p>}
           </div>
 
           <div className="mt-3 rounded-xl border border-line bg-elevated p-3">
@@ -148,53 +215,70 @@ export function DeployDialog({
                 <Copy size={13} /> {t('copy')}
               </button>
             </div>
-            <pre
-              dir="ltr"
-              className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-text-primary"
-            >
+            <pre dir="ltr" className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-text-primary">
               {dockerRun(plan)}
             </pre>
           </div>
 
-          {installed ? (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
-              <CheckCircle2 size={18} /> {t('deployInstalled')} — {installed}
-            </div>
-          ) : (
-            <>
-              <div className="mt-3 flex items-start gap-1.5 text-xs text-warning">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                {t('deployWarning')}
-              </div>
-              {error && <div className="mt-2 text-sm text-danger">{error}</div>}
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setPlan(null)
-                    setError(null)
-                  }}
-                  className="rounded-xl px-3 py-2 text-sm text-text-secondary hover:bg-elevated"
-                >
-                  {t('deployReplan')}
-                </button>
-                <button
-                  onClick={doInstall}
-                  disabled={installing}
-                  className="ms-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {installing ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <Rocket size={16} />
-                  )}
-                  {t('deployInstall')} {t('deployOn')} {deviceLabel}
-                </button>
-              </div>
-            </>
-          )}
+          <div className="mt-3 flex items-start gap-1.5 text-xs text-warning">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            {t('deployWarning')}
+          </div>
+          {error && <div className="mt-2 text-sm text-danger">{error}</div>}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={() => setPlan(null)}
+              className="rounded-xl px-3 py-2 text-sm text-text-secondary hover:bg-elevated"
+            >
+              {t('deployReplan')}
+            </button>
+            <button
+              onClick={installPlan}
+              disabled={busy}
+              className="ms-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <Rocket size={16} />}
+              {t('deployInstall')} {t('deployOn')} {deviceLabel}
+            </button>
+          </div>
         </>
       )}
     </Dialog>
+  )
+}
+
+function Result({
+  result,
+  host,
+  okLabel,
+  openLabel,
+}: {
+  result: DeployResult
+  host: string
+  okLabel: string
+  openLabel: string
+}) {
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent/10 p-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-accent">
+        <CheckCircle2 size={18} /> {okLabel} — {result.name} · {result.status}
+      </div>
+      {result.ports.length > 0 && host && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {result.ports.map((p) => (
+            <a
+              key={p.host}
+              href={`http://${host}:${p.host}`}
+              target="_blank"
+              rel="noreferrer"
+              className="chip bg-surface text-primary hover:opacity-80"
+            >
+              <ExternalLink size={12} /> {openLabel} :{p.host}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

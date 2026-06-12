@@ -35,20 +35,64 @@ class DockerService:
         container.reload()
         return container.status
 
+    # Ports already published by any Docker container (running or stopped).
+    def _used_host_ports(self) -> set[int]:
+        used: set[int] = set()
+        try:
+            for c in self.client.containers.list(all=True):
+                attrs = c.attrs or {}
+                groups = [
+                    (attrs.get("NetworkSettings", {}) or {}).get("Ports", {}) or {},
+                    (attrs.get("HostConfig", {}) or {}).get("PortBindings", {}) or {},
+                ]
+                for ports in groups:
+                    for binds in ports.values():
+                        for b in binds or []:
+                            hp = b.get("HostPort")
+                            if hp and str(hp).isdigit():
+                                used.add(int(hp))
+        except DockerException:
+            pass
+        return used
+
+    # Next free host port at/above `want`, skipping used + Rased's own ports.
+    def _free_port(self, want: int, used: set[int]) -> int:
+        reserved = {8002, 8082}
+        p = want if want > 0 else 8080
+        while p in used or p in reserved:
+            p += 1
+            if p > 65000:
+                p = 1025
+        used.add(p)
+        return p
+
+    def _result(self, container, ports: dict[str, int]) -> dict:
+        container.reload()
+        return {
+            "id": container.short_id,
+            "name": container.name,
+            "status": container.status,
+            "ports": [
+                {"host": hp, "container": int(cp.split("/")[0])}
+                for cp, hp in ports.items()
+            ],
+        }
+
     def run_container(self, spec: dict) -> dict:
         """Create + start a container from a reviewed, structured spec — using the
-        Docker SDK directly (no shell, no string eval). Admin-gated upstream."""
+        Docker SDK directly (no shell). Auto-reassigns any taken host port."""
         image = str(spec.get("image") or "").strip()
         if not image:
             raise ValueError("image is required")
         name = str(spec.get("name") or "").strip() or None
 
+        used = self._used_host_ports()
         ports: dict[str, int] = {}
         for p in spec.get("ports") or []:
             cport = str(p.get("container") or "").strip()
             hport = p.get("host")
             if cport and hport:
-                ports[f"{cport}/tcp"] = int(hport)
+                ports[f"{cport}/tcp"] = self._free_port(int(hport), used)
 
         volumes: dict[str, dict] = {}
         for v in spec.get("volumes") or []:
@@ -69,12 +113,32 @@ class DockerService:
             environment=env or None,
             restart_policy={"Name": restart} if restart else None,
         )
-        container.reload()
-        return {
-            "id": container.short_id,
-            "name": container.name,
-            "status": container.status,
-        }
+        return self._result(container, ports)
+
+    def run_image(self, image: str, name: str = "") -> dict:
+        """Pull an image and run it, auto-publishing its EXPOSEd ports to free host
+        ports. The "just give me an image" path."""
+        image = image.strip()
+        if not image:
+            raise ValueError("image is required")
+        img = self.client.images.pull(image)
+        exposed = (img.attrs.get("Config", {}) or {}).get("ExposedPorts", {}) or {}
+
+        name = name.strip() or image.rsplit("/", 1)[-1].split(":")[0]
+        used = self._used_host_ports()
+        ports: dict[str, int] = {}
+        for cport in exposed:  # e.g. "80/tcp"
+            num = int(str(cport).split("/")[0])
+            ports[cport] = self._free_port(num, used)
+
+        container = self.client.containers.run(
+            image,
+            name=name or None,
+            detach=True,
+            ports=ports or None,
+            restart_policy={"Name": "unless-stopped"},
+        )
+        return self._result(container, ports)
 
     def _calc_cpu_percent(self, stats: dict) -> float:
         try:

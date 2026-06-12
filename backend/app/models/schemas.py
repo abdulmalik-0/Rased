@@ -151,10 +151,16 @@ class DeployPlan(BaseModel):
     notes: str = ""
 
 
+class DeployImageRequest(BaseModel):
+    image: str
+    name: str = ""
+
+
 class DeployRunResponse(BaseModel):
     id: str
     name: str
     status: str
+    ports: list[PortMap] = Field(default_factory=list)
 
 
 class ContainerActionRequest(BaseModel):

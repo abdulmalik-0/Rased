@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.config import settings
 from app.models.schemas import (
+    DeployImageRequest,
     DeployPlan,
     DeployPlanRequest,
     DeployRunResponse,
@@ -65,6 +66,30 @@ async def run_deploy(
         result = docker_service.run_container(plan.model_dump())
     except ImageNotFound:
         raise HTTPException(status_code=404, detail=f"Image not found: {plan.image}")
+    except (APIError, DockerException) as exc:
+        raise HTTPException(status_code=400, detail=f"Docker error: {exc}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return DeployRunResponse(**result)
+
+
+@router.post("/image", response_model=DeployRunResponse)
+async def run_image(
+    req: DeployImageRequest,
+    _admin: dict = Depends(require_admin),
+) -> DeployRunResponse:
+    """Pull and run an image directly (auto-publishing its ports to free ones)."""
+    if not settings.allow_container_deploy:
+        raise HTTPException(
+            status_code=403,
+            detail="Container deploy is disabled (set ALLOW_CONTAINER_DEPLOY=true)",
+        )
+    if not req.image.strip():
+        raise HTTPException(status_code=400, detail="image is required")
+    try:
+        result = docker_service.run_image(req.image, req.name)
+    except ImageNotFound:
+        raise HTTPException(status_code=404, detail=f"Image not found: {req.image}")
     except (APIError, DockerException) as exc:
         raise HTTPException(status_code=400, detail=f"Docker error: {exc}")
     except ValueError as exc:

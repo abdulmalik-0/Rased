@@ -175,6 +175,11 @@ const en: Record<string, string> = {
   planNotes: 'Notes',
   equivalentCmd: 'Equivalent command',
   deployReplan: 'New plan',
+  deployByImage: 'By image',
+  deployDescribe: 'Describe (AI)',
+  deployImageHint: 'Image — e.g. linuxserver/jellyfin',
+  deployImageBtn: 'Pull & run',
+  openAt: 'Open',
 }
 
 const ar: Record<string, string> = {
@@ -345,6 +350,11 @@ const ar: Record<string, string> = {
   planNotes: 'ملاحظات',
   equivalentCmd: 'الأمر المكافئ',
   deployReplan: 'خطّة جديدة',
+  deployByImage: 'من صورة',
+  deployDescribe: 'وصف (ذكاء)',
+  deployImageHint: 'الصورة — مثل linuxserver/jellyfin',
+  deployImageBtn: 'حمّل وشغّل',
+  openAt: 'افتح',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }
