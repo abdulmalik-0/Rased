@@ -163,6 +163,87 @@ export const api = {
     )
   },
 
+  // ---- alerts ----
+  async getAlerts(hostId?: string, limit = 100): Promise<Record<string, unknown>[]> {
+    const q = hostId ? `&host_id=${encodeURIComponent(hostId)}` : ''
+    const r = await handle(
+      await fetch(`${backendUrl}/alerts?limit=${limit}${q}`, { headers: headers() }),
+    )
+    return r.json()
+  },
+  async patchAlert(id: number, action: 'ack' | 'resolve') {
+    await handle(
+      await fetch(`${backendUrl}/alerts/${id}?action=${action}`, {
+        method: 'PATCH',
+        headers: headers(),
+      }),
+    )
+  },
+
+  // ---- thresholds ----
+  async getThresholds(hostId: string): Promise<Record<string, number | null>> {
+    const r = await handle(
+      await fetch(`${backendUrl}/thresholds?host_id=${encodeURIComponent(hostId)}`, {
+        headers: headers(),
+      }),
+    )
+    return r.json()
+  },
+  async setThresholds(body: {
+    host_id: string
+    cpu?: number | null
+    mem?: number | null
+    disk?: number | null
+    battery?: number | null
+  }) {
+    await handle(
+      await fetch(`${backendUrl}/thresholds`, {
+        method: 'PUT',
+        headers: headers(true),
+        body: JSON.stringify(body),
+      }),
+    )
+  },
+
+  // ---- usage / backup ----
+  async getUsage(): Promise<Record<string, unknown>[]> {
+    const r = await handle(await fetch(`${backendUrl}/usage`, { headers: headers() }))
+    return r.json()
+  },
+  async downloadBackup(): Promise<void> {
+    const resp = await fetch(`${backendUrl}/admin/backup`, { headers: headers() })
+    if (!resp.ok) throw new Error('Backup failed')
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'rased-backup.db'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
+  async logout(): Promise<void> {
+    try {
+      await fetch(`${backendUrl}/auth/logout`, { method: 'POST', headers: headers() })
+    } catch {
+      /* ignore — local logout still proceeds */
+    }
+  },
+  async getContainerHistory(
+    name: string,
+    hours: number,
+    hostId: string,
+  ): Promise<Record<string, unknown>[]> {
+    const r = await handle(
+      await fetch(
+        `${backendUrl}/history/container/${encodeURIComponent(name)}?hours=${hours}&host_id=${encodeURIComponent(hostId)}`,
+        { headers: headers() },
+      ),
+    )
+    return r.json()
+  },
+
   // ---- onboarding ----
   async getAgentSetup(): Promise<Record<string, unknown>> {
     const r = await handle(

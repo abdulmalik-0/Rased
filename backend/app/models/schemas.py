@@ -225,6 +225,14 @@ class LinkUpsert(BaseModel):
     label: str = ""
 
 
+class ThresholdUpdate(BaseModel):
+    host_id: str
+    cpu: float | None = None
+    mem: float | None = None
+    disk: float | None = None
+    battery: float | None = None
+
+
 class ChatUpsert(BaseModel):
     id: str | None = None
     host_id: str = "default"

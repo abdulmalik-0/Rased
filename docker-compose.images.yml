@@ -1,0 +1,55 @@
+# Rased CENTRAL using prebuilt GHCR images — no clone, no npm, no build.
+#   docker compose -f docker-compose.images.yml up -d
+# The UI reads BACKEND_URL at runtime (no rebuild needed per server).
+name: rased
+
+services:
+  rased-api:
+    image: ghcr.io/abdulmalik-0/rased-api:latest
+    container_name: rased-api
+    restart: unless-stopped
+    ports:
+      - "${RASED_API_PORT:-8002}:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - rased-data:/data
+    environment:
+      DB_PATH: /data/rased.db
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      HOST_ID: ${RASED_HOST_ID:-central}
+      HOST_NAME: ${RASED_HOST_NAME:-My Server}
+      PUBLIC_BASE_URL: ${RASED_PUBLIC_BASE_URL:-}
+      CORS_ORIGINS: ${RASED_CORS_ORIGINS}
+      NUT_HOST: ${NUT_HOST:-host.docker.internal}
+      NUT_PORT: ${NUT_PORT:-3493}
+      NUT_UPS_NAME: ${NUT_UPS_NAME:-ups}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      ALLOW_CONTAINER_DEPLOY: ${ALLOW_CONTAINER_DEPLOY:-true}
+      AI_MONTHLY_TOKEN_BUDGET: ${AI_MONTHLY_TOKEN_BUDGET:-0}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  rased-ui:
+    image: ghcr.io/abdulmalik-0/rased-ui:latest
+    container_name: rased-ui
+    restart: unless-stopped
+    ports:
+      - "${RASED_UI_PORT:-8082}:80"
+    environment:
+      # Injected into /config.js at startup so the UI talks to YOUR backend.
+      BACKEND_URL: ${RASED_PUBLIC_BASE_URL:-http://localhost:8002}
+    depends_on:
+      - rased-api
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  rased-data:

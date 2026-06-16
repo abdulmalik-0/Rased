@@ -43,7 +43,9 @@ async def login(req: AuthRequest) -> AuthResponse:
             status_code=403, detail="Your account is pending admin approval"
         )
     return AuthResponse(
-        token=create_token(user["id"], email, user["role"]),
+        token=create_token(
+            user["id"], email, user["role"], int(user.get("token_version", 0))
+        ),
         email=email,
         role=user["role"],
     )
@@ -52,3 +54,16 @@ async def login(req: AuthRequest) -> AuthResponse:
 @router.get("/me")
 async def me(claims: dict = Depends(require_user)) -> dict:
     return {"email": claims.get("email"), "role": claims.get("role")}
+
+
+@router.get("/verify")
+async def verify(claims: dict = Depends(require_user)) -> dict:
+    """Re-validate a token against the central DB (used by remote agents)."""
+    return {"ok": True, "role": claims.get("role"), "email": claims.get("email")}
+
+
+@router.post("/logout")
+async def logout(claims: dict = Depends(require_user)) -> dict:
+    """Revoke all of this user's tokens by bumping their token_version."""
+    await db.bump_token_version(claims["sub"])
+    return {"status": "ok"}

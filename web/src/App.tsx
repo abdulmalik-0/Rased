@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { useAuth } from './lib/auth'
 import { SettingsProvider } from './lib/settings'
+import Alerts from './screens/Alerts'
 import Chat from './screens/Chat'
 import Dashboard from './screens/Dashboard'
 import Help from './screens/Help'
@@ -19,6 +20,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/history" element={<History />} />
+          <Route path="/alerts" element={<Alerts />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/users" element={<Users />} />

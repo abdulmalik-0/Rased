@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Save, Sparkles } from 'lucide-react'
+import { BarChart3, Database, Download, Loader2, Save, Sparkles } from 'lucide-react'
+import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { useSettings } from '../lib/settings'
 import { useToast } from '../lib/toast'
+import { isAdmin } from '../lib/types'
 
 const DEFAULTS: Record<string, string> = {
   ollama: 'http://localhost:11434/v1',
@@ -129,6 +132,90 @@ export default function Settings() {
           </>
         )}
       </div>
+
+      <AdminTools />
+    </div>
+  )
+}
+
+function AdminTools() {
+  const { t } = useI18n()
+  const { session } = useAuth()
+  const toast = useToast()
+  const [usage, setUsage] = useState<
+    { user_id: string; model: string; tokens: number; calls: number }[]
+  >([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin(session)) return
+    api
+      .getUsage()
+      .then((u) => setUsage(u as unknown as typeof usage))
+      .catch(() => {})
+  }, [session])
+
+  if (!isAdmin(session)) return null
+
+  async function backup() {
+    setBusy(true)
+    try {
+      await api.downloadBackup()
+      toast('OK')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Database size={18} />
+        </span>
+        <div className="font-semibold text-text-primary">{t('adminTools')}</div>
+      </div>
+
+      <button
+        onClick={backup}
+        disabled={busy}
+        className="flex items-center gap-2 rounded-xl border border-line bg-bg px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-elevated disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
+        {t('backupDb')}
+      </button>
+
+      {usage.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-text-primary">
+            <BarChart3 size={15} /> {t('aiUsage')}
+          </div>
+          <div className="overflow-hidden rounded-xl border border-line/60">
+            <table className="w-full text-sm">
+              <thead className="bg-elevated text-xs text-text-secondary">
+                <tr>
+                  <th className="p-2 text-start font-medium">user</th>
+                  <th className="p-2 text-start font-medium">model</th>
+                  <th className="p-2 text-end font-medium">{t('tokens')}</th>
+                  <th className="p-2 text-end font-medium">{t('calls')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usage.map((u, i) => (
+                  <tr key={i} className="border-t border-line/60 text-text-primary">
+                    <td className="max-w-[140px] truncate p-2">{u.user_id || '—'}</td>
+                    <td className="max-w-[140px] truncate p-2">{u.model}</td>
+                    <td className="p-2 text-end">{u.tokens}</td>
+                    <td className="p-2 text-end">{u.calls}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

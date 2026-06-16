@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    api.logout() // revoke server-side (bumps token_version); fire-and-forget
     localStorage.removeItem(KEY)
     setAuthToken(null)
     setSession(null)

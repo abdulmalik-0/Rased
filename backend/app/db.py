@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'viewer',
     approved INTEGER NOT NULL DEFAULT 0,
+    token_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -64,9 +65,26 @@ CREATE TABLE IF NOT EXISTS alerts (
     kind TEXT,
     target TEXT,
     message TEXT,
-    value REAL
+    value REAL,
+    acknowledged INTEGER NOT NULL DEFAULT 0,
+    resolved_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_alerts_host_ts ON alerts(host_id, ts);
+CREATE TABLE IF NOT EXISTS alert_thresholds (
+    host_id TEXT PRIMARY KEY,
+    cpu REAL, mem REAL, disk REAL, battery REAL
+);
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT '',
+    provider TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT '',
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_usage_user_ts ON ai_usage(user_id, ts);
 CREATE TABLE IF NOT EXISTS ai_chats (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -119,6 +137,16 @@ async def init_db() -> None:
             await _db.commit()
         except Exception:
             pass
+    for tbl, col in (
+        ("users", "token_version INTEGER NOT NULL DEFAULT 0"),
+        ("alerts", "acknowledged INTEGER NOT NULL DEFAULT 0"),
+        ("alerts", "resolved_at TEXT"),
+    ):
+        try:
+            await _db.execute(f"ALTER TABLE {tbl} ADD COLUMN {col}")
+            await _db.commit()
+        except Exception:
+            pass
 
 
 async def close_db() -> None:
@@ -151,8 +179,10 @@ async def create_user(
 
 
 async def set_user_approved(uid: str, approved: bool) -> None:
+    # Bump token_version so any existing session re-validates against the new state.
     await conn().execute(
-        "UPDATE users SET approved = ? WHERE id = ?", (1 if approved else 0, uid)
+        "UPDATE users SET approved = ?, token_version = token_version + 1 WHERE id = ?",
+        (1 if approved else 0, uid),
     )
     await conn().commit()
 
@@ -165,6 +195,19 @@ async def get_user_by_email(email: str) -> dict | None:
         return dict(row) if row else None
 
 
+async def get_user_by_id(uid: str) -> dict | None:
+    async with conn().execute("SELECT * FROM users WHERE id = ?", (uid,)) as cur:
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def bump_token_version(uid: str) -> None:
+    await conn().execute(
+        "UPDATE users SET token_version = token_version + 1 WHERE id = ?", (uid,)
+    )
+    await conn().commit()
+
+
 async def list_users() -> list[dict]:
     async with conn().execute(
         "SELECT id, email, role, approved, created_at FROM users ORDER BY created_at"
@@ -173,7 +216,10 @@ async def list_users() -> list[dict]:
 
 
 async def set_user_role(uid: str, role: str) -> None:
-    await conn().execute("UPDATE users SET role = ? WHERE id = ?", (role, uid))
+    await conn().execute(
+        "UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?",
+        (role, uid),
+    )
     await conn().commit()
 
 
@@ -426,7 +472,10 @@ async def insert_alert(
 
 
 async def list_alerts(host_id: str | None = None, limit: int = 100) -> list[dict]:
-    sql = "SELECT ts, host_id, level, kind, target, message, value FROM alerts"
+    sql = (
+        "SELECT id, ts, host_id, level, kind, target, message, value, "
+        "acknowledged, resolved_at FROM alerts"
+    )
     params: list = []
     if host_id:
         sql += " WHERE host_id = ?"
@@ -435,6 +484,100 @@ async def list_alerts(host_id: str | None = None, limit: int = 100) -> list[dict
     params.append(limit)
     async with conn().execute(sql, params) as cur:
         return [dict(r) for r in await cur.fetchall()]
+
+
+async def ack_alert(alert_id: int) -> None:
+    await conn().execute(
+        "UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,)
+    )
+    await conn().commit()
+
+
+async def resolve_alert(alert_id: int) -> None:
+    await conn().execute(
+        "UPDATE alerts SET acknowledged = 1, resolved_at = ? WHERE id = ?",
+        (_now(), alert_id),
+    )
+    await conn().commit()
+
+
+# ---------- per-host alert thresholds ----------
+async def get_thresholds(host_id: str) -> dict | None:
+    async with conn().execute(
+        "SELECT cpu, mem, disk, battery FROM alert_thresholds WHERE host_id = ?",
+        (host_id,),
+    ) as cur:
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def all_thresholds() -> dict[str, dict]:
+    async with conn().execute(
+        "SELECT host_id, cpu, mem, disk, battery FROM alert_thresholds"
+    ) as cur:
+        return {r["host_id"]: dict(r) for r in await cur.fetchall()}
+
+
+async def set_thresholds(
+    host_id: str, cpu=None, mem=None, disk=None, battery=None
+) -> None:
+    await conn().execute(
+        """
+        INSERT INTO alert_thresholds (host_id, cpu, mem, disk, battery)
+        VALUES (?,?,?,?,?)
+        ON CONFLICT(host_id) DO UPDATE SET
+            cpu=excluded.cpu, mem=excluded.mem, disk=excluded.disk, battery=excluded.battery
+        """,
+        (host_id, cpu, mem, disk, battery),
+    )
+    await conn().commit()
+
+
+# ---------- AI usage accounting ----------
+async def log_usage(
+    user_id: str, provider: str, model: str, kind: str, ptoks: int, ctoks: int
+) -> None:
+    try:
+        await conn().execute(
+            "INSERT INTO ai_usage (ts, user_id, provider, model, kind, "
+            "prompt_tokens, completion_tokens) VALUES (?,?,?,?,?,?,?)",
+            (_now(), user_id, provider, model, kind, ptoks, ctoks),
+        )
+        await conn().commit()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def usage_tokens_since(user_id: str, since_iso: str) -> int:
+    async with conn().execute(
+        "SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS t "
+        "FROM ai_usage WHERE user_id = ? AND ts >= ?",
+        (user_id, since_iso),
+    ) as cur:
+        row = await cur.fetchone()
+        return int(row["t"] or 0)
+
+
+async def usage_summary(limit: int = 100) -> list[dict]:
+    async with conn().execute(
+        "SELECT user_id, provider, model, "
+        "SUM(prompt_tokens + completion_tokens) AS tokens, COUNT(*) AS calls "
+        "FROM ai_usage GROUP BY user_id, provider, model "
+        "ORDER BY tokens DESC LIMIT ?",
+        (limit,),
+    ) as cur:
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def backup_to(path: str) -> None:
+    """WAL-safe online backup of the live SQLite DB to `path`."""
+    import sqlite3
+
+    dest = sqlite3.connect(path)
+    try:
+        await conn().backup(dest)
+    finally:
+        dest.close()
 
 
 # ---------- audit ----------

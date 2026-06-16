@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
+
 import httpx
 
+from app import db
 from app.config import settings
 from app.models.schemas import AIProviderConfig
 from app.services.sanitization import sanitize_text
@@ -61,7 +64,7 @@ def _is_anthropic(ai_config: AIProviderConfig) -> bool:
 
 async def _chat_openai(
     messages: list[dict], ai_config: AIProviderConfig, temperature: float
-) -> str:
+) -> tuple[str, dict]:
     base_url = ai_config.base_url.rstrip("/")
     if not base_url.endswith("/v1"):
         base_url = f"{base_url}/v1"
@@ -87,14 +90,20 @@ async def _chat_openai(
         data = response.json()
 
     try:
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise ValueError(f"Unexpected AI response shape: {str(data)[:200]}") from exc
+    u = data.get("usage") or {}
+    usage = {
+        "prompt": int(u.get("prompt_tokens", 0) or 0),
+        "completion": int(u.get("completion_tokens", 0) or 0),
+    }
+    return content, usage
 
 
 async def _chat_anthropic(
     messages: list[dict], ai_config: AIProviderConfig, temperature: float
-) -> str:
+) -> tuple[str, dict]:
     base_url = (ai_config.base_url or "https://api.anthropic.com").rstrip("/")
     if base_url.endswith("/v1"):
         base_url = base_url[:-3]
@@ -129,20 +138,56 @@ async def _chat_anthropic(
 
     try:
         parts = [b.get("text", "") for b in data["content"] if b.get("type") == "text"]
-        text = "".join(parts)
-        return text or data["content"][0]["text"]
+        text = "".join(parts) or data["content"][0]["text"]
     except (KeyError, IndexError, TypeError) as exc:
         raise ValueError(f"Unexpected Anthropic response: {str(data)[:200]}") from exc
+    u = data.get("usage") or {}
+    usage = {
+        "prompt": int(u.get("input_tokens", 0) or 0),
+        "completion": int(u.get("output_tokens", 0) or 0),
+    }
+    return text, usage
+
+
+def _month_start_iso() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        .isoformat()
+    )
 
 
 async def _chat(
     messages: list[dict],
     ai_config: AIProviderConfig,
     temperature: float = 0.3,
+    user_id: str = "",
+    kind: str = "",
 ) -> str:
+    # Per-user monthly token budget (central only; agents have no DB).
+    if (
+        settings.is_central
+        and settings.ai_monthly_token_budget > 0
+        and user_id
+    ):
+        try:
+            used = await db.usage_tokens_since(user_id, _month_start_iso())
+        except Exception:  # noqa: BLE001
+            used = 0
+        if used >= settings.ai_monthly_token_budget:
+            raise ValueError("Monthly AI token budget exceeded")
+
     if _is_anthropic(ai_config):
-        return await _chat_anthropic(messages, ai_config, temperature)
-    return await _chat_openai(messages, ai_config, temperature)
+        text, usage = await _chat_anthropic(messages, ai_config, temperature)
+    else:
+        text, usage = await _chat_openai(messages, ai_config, temperature)
+
+    if settings.is_central:
+        await db.log_usage(
+            user_id, ai_config.provider_type, ai_config.model_name, kind,
+            usage["prompt"], usage["completion"],
+        )
+    return text
 
 
 async def analyze_logs(
@@ -150,6 +195,7 @@ async def analyze_logs(
     ai_config: AIProviderConfig,
     custom_prompt: str | None = None,
     lang: str = "en",
+    user_id: str = "",
 ) -> tuple[str, str]:
     sanitized = "\n".join(sanitize_text(line) for line in logs)
     preview = sanitized[:500] + ("..." if len(sanitized) > 500 else "")
@@ -165,6 +211,8 @@ async def analyze_logs(
             {"role": "user", "content": user_content},
         ],
         ai_config,
+        user_id=user_id,
+        kind="analyze",
     )
     return analysis, preview
 
@@ -175,6 +223,7 @@ async def ask_question(
     ai_config: AIProviderConfig,
     history: list[dict] | None = None,
     lang: str = "en",
+    user_id: str = "",
 ) -> str:
     user_content = (
         f"Question:\n{question}\n\n"
@@ -193,11 +242,13 @@ async def ask_question(
             {"role": "user", "content": user_content},
         ],
         ai_config,
+        user_id=user_id,
+        kind="ask",
     )
 
 
 async def suggest_deploy(
-    description: str, ai_config: AIProviderConfig, lang: str = "en"
+    description: str, ai_config: AIProviderConfig, lang: str = "en", user_id: str = ""
 ) -> str:
     """Suggest (not execute) a docker run / compose for the requested service."""
     user_content = (
@@ -211,6 +262,8 @@ async def suggest_deploy(
         ],
         ai_config,
         temperature=0.2,
+        user_id=user_id,
+        kind="deploy",
     )
 
 
@@ -247,7 +300,7 @@ def _extract_json(text: str) -> dict:
 
 
 async def plan_deploy(
-    description: str, ai_config: AIProviderConfig, lang: str = "en"
+    description: str, ai_config: AIProviderConfig, lang: str = "en", user_id: str = ""
 ) -> dict:
     """Ask the AI for a STRUCTURED docker plan (for review + one-click install)."""
     raw = await _chat(
@@ -257,6 +310,8 @@ async def plan_deploy(
         ],
         ai_config,
         temperature=0.1,
+        user_id=user_id,
+        kind="deploy",
     )
     return _extract_json(raw)
 
@@ -269,4 +324,5 @@ async def daily_digest(summary: str, ai_config: AIProviderConfig) -> str:
         ],
         ai_config,
         temperature=0.4,
+        kind="digest",
     )

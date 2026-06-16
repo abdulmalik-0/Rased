@@ -24,9 +24,17 @@ class AlertService:
         self._last_sent: dict[str, float] = {}
         self._baselines: dict[str, float] = {}
         self.recent: dict[str, list[Alert]] = {}
+        # Per-host threshold overrides (host_id -> {cpu, mem, disk, battery}); the
+        # collector refreshes this from the DB. Empty -> use global env defaults.
+        self.thresholds_cache: dict[str, dict] = {}
 
     def recent_for(self, host_id: str) -> list[Alert]:
         return self.recent.get(host_id, [])[-10:]
+
+    def _thr(self, host_id: str, key: str, default: float) -> float:
+        o = self.thresholds_cache.get(host_id) or {}
+        v = o.get(key)
+        return float(v) if v is not None else default
 
     def update_baselines(self, payload: MetricsPayload) -> None:
         for c in payload.containers:
@@ -43,19 +51,20 @@ class AlertService:
         alerts: list[Alert] = []
         host = payload.host
 
+        hid = payload.host_id
         if host.available:
-            if host.cpu_percent >= settings.cpu_alert_percent:
+            if host.cpu_percent >= self._thr(hid, "cpu", settings.cpu_alert_percent):
                 alerts.append(Alert(level="warning", kind="cpu", target="host",
                                     value=host.cpu_percent,
                                     message=f"Host CPU at {host.cpu_percent:.0f}%",
                                     timestamp=ts))
-            if host.memory_percent >= settings.mem_alert_percent:
+            if host.memory_percent >= self._thr(hid, "mem", settings.mem_alert_percent):
                 alerts.append(Alert(level="warning", kind="memory", target="host",
                                     value=host.memory_percent,
                                     message=f"Host memory at {host.memory_percent:.0f}%",
                                     timestamp=ts))
             for disk in host.disks:
-                if disk.percent >= settings.disk_alert_percent:
+                if disk.percent >= self._thr(hid, "disk", settings.disk_alert_percent):
                     alerts.append(Alert(
                         level="critical" if disk.percent >= 95 else "warning",
                         kind="disk", target=disk.mount, value=disk.percent,
@@ -88,7 +97,8 @@ class AlertService:
             alerts.append(Alert(level="critical", kind="ups", target="ups",
                                 message="UPS is running on battery", timestamp=ts))
         if (ups.connected and ups.battery_charge_percent is not None
-                and ups.battery_charge_percent <= settings.battery_alert_percent):
+                and ups.battery_charge_percent
+                <= self._thr(hid, "battery", settings.battery_alert_percent)):
             alerts.append(Alert(level="warning", kind="ups", target="battery",
                                 value=ups.battery_charge_percent,
                                 message=f"UPS battery low: {ups.battery_charge_percent:.0f}%",
@@ -130,29 +140,48 @@ class AlertService:
             logger.debug("Alert persist error: %s", exc)
 
     async def _post(self, alert: Alert, host_id: str) -> bool:
-        if not settings.alert_webhook_url:
-            return False
-        body = {
-            "text": f"[{alert.level.upper()}] {host_id}: {alert.message}",
-            "level": alert.level, "kind": alert.kind, "target": alert.target,
-            "value": alert.value, "host_id": host_id, "message": alert.message,
-            "timestamp": alert.timestamp,
+        """Deliver to every configured channel (webhook + Telegram). Slack/Discord
+        webhooks are auto-detected and formatted. Returns True if any succeeded."""
+        text = f"[{alert.level.upper()}] {host_id}: {alert.message}"
+        ok = False
+        if settings.alert_webhook_url:
+            ok = await self._deliver(settings.alert_webhook_url,
+                                     self._webhook_body(text, alert, host_id)) or ok
+        if settings.telegram_bot_token and settings.telegram_chat_id:
+            url = (f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+                   "/sendMessage")
+            ok = await self._deliver(
+                url, {"chat_id": settings.telegram_chat_id, "text": text}) or ok
+        return ok
+
+    @staticmethod
+    def _webhook_body(text: str, alert: Alert, host_id: str) -> dict:
+        low = settings.alert_webhook_url.lower()
+        if "hooks.slack.com" in low:
+            return {"text": text}
+        if "discord.com/api/webhooks" in low or "discordapp.com/api/webhooks" in low:
+            return {"content": text}
+        return {
+            "text": text, "level": alert.level, "kind": alert.kind,
+            "target": alert.target, "value": alert.value, "host_id": host_id,
+            "message": alert.message, "timestamp": alert.timestamp,
         }
-        # Retry with backoff so a momentary webhook outage doesn't drop the alert.
+
+    async def _deliver(self, url: str, body: dict) -> bool:
+        # Retry with backoff so a momentary outage doesn't drop the alert.
         delays = (0.0, 1.0, 3.0)
         async with httpx.AsyncClient(timeout=10.0) as client:
             for attempt, delay in enumerate(delays, start=1):
                 if delay:
                     await asyncio.sleep(delay)
                 try:
-                    resp = await client.post(settings.alert_webhook_url, json=body)
+                    resp = await client.post(url, json=body)
                     if resp.status_code < 400:
                         return True
-                    logger.warning(
-                        "Alert webhook HTTP %s (attempt %s)", resp.status_code, attempt
-                    )
+                    logger.warning("Alert delivery HTTP %s (attempt %s)",
+                                   resp.status_code, attempt)
                 except httpx.HTTPError as exc:
-                    logger.warning("Alert webhook error (attempt %s): %s", attempt, exc)
+                    logger.warning("Alert delivery error (attempt %s): %s", attempt, exc)
         return False
 
 

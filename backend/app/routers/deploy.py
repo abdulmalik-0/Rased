@@ -26,12 +26,14 @@ router = APIRouter(prefix="/deploy", tags=["deploy"])
 @router.post("/suggest", response_model=DeploySuggestResponse)
 async def suggest_deploy(
     req: DeploySuggestRequest,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ) -> DeploySuggestResponse:
     if not req.description.strip():
         raise HTTPException(status_code=400, detail="description is required")
     try:
-        text = await ai_router.suggest_deploy(req.description, req.ai_config, req.lang)
+        text = await ai_router.suggest_deploy(
+            req.description, req.ai_config, req.lang, admin.get("sub", "")
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return DeploySuggestResponse(suggestion=text, model_used=req.ai_config.model_name)
@@ -40,12 +42,14 @@ async def suggest_deploy(
 @router.post("/plan", response_model=DeployPlan)
 async def plan_deploy(
     req: DeployPlanRequest,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ) -> DeployPlan:
     if not req.description.strip():
         raise HTTPException(status_code=400, detail="description is required")
     try:
-        spec = await ai_router.plan_deploy(req.description, req.ai_config, req.lang)
+        spec = await ai_router.plan_deploy(
+            req.description, req.ai_config, req.lang, admin.get("sub", "")
+        )
         return DeployPlan(**spec)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

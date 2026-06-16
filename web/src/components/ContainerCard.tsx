@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ExternalLink,
+  LineChart,
   Link2,
   MoreVertical,
   Pencil,
@@ -12,6 +13,7 @@ import { useCopy } from '../lib/useCopy'
 import { useToast } from '../lib/toast'
 import type { ContainerMetrics } from '../lib/types'
 import { AnalyzeDialog } from './dialogs/AnalyzeDialog'
+import { ContainerHistoryDialog } from './dialogs/ContainerHistoryDialog'
 import { LinkEditDialog } from './dialogs/LinkEditDialog'
 import { LogsDialog } from './dialogs/LogsDialog'
 
@@ -59,6 +61,7 @@ export function ContainerCard({
   const [analyze, setAnalyze] = useState(false)
   const [logs, setLogs] = useState(false)
   const [linkEdit, setLinkEdit] = useState(false)
+  const [hist, setHist] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const running = c.status === 'running'
   const host = (() => {
@@ -119,6 +122,14 @@ export function ContainerCard({
                 label={t('viewLogs')}
                 onClick={() => {
                   setLogs(true)
+                  setOpen(false)
+                }}
+              />
+              <MenuItem
+                icon={<LineChart size={15} />}
+                label={t('usageHistory')}
+                onClick={() => {
+                  setHist(true)
                   setOpen(false)
                 }}
               />
@@ -190,6 +201,14 @@ export function ContainerCard({
       )}
       {logs && (
         <LogsDialog open={logs} onClose={() => setLogs(false)} container={c} apiUrl={apiUrl} />
+      )}
+      {hist && (
+        <ContainerHistoryDialog
+          open={hist}
+          onClose={() => setHist(false)}
+          name={c.name}
+          hostId={hostId}
+        />
       )}
       {linkEdit && (
         <LinkEditDialog

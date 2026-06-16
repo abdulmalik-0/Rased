@@ -11,6 +11,7 @@ set -euo pipefail
 
 REPO="${RASED_REPO:-https://github.com/abdulmalik-0/Rased.git}"
 DIR="${RASED_DIR:-$HOME/rased}"
+REF="${RASED_REF:-}"  # pin to a release tag/branch (e.g. RASED_REF=v1.0.0)
 
 say()  { printf '\033[1;36m%s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m%s\033[0m\n' "$*"; }
@@ -68,7 +69,11 @@ if [ -d "$DIR/.git" ]; then
   git -C "$DIR" pull --ff-only || true
 else
   say "Downloading Rased into $DIR ..."
-  git clone --depth 1 "$REPO" "$DIR"
+  if [ -n "$REF" ]; then
+    git clone --depth 1 --branch "$REF" "$REPO" "$DIR"
+  else
+    git clone --depth 1 "$REPO" "$DIR"
+  fi
 fi
 
 # 3) Run the installer with all passed arguments -----------------------------

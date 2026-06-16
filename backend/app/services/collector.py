@@ -301,6 +301,10 @@ async def collector_loop() -> None:
             if settings.is_central and now - last_agent_scan >= 60:
                 last_agent_scan = now
                 await _scan_dead_agents()
+                try:
+                    alert_service.thresholds_cache = await db.all_thresholds()
+                except Exception:  # noqa: BLE001
+                    pass
 
         except asyncio.CancelledError:
             raise

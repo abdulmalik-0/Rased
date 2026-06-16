@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   Activity,
+  Bell,
   HelpCircle,
   LayoutDashboard,
   LineChart,
@@ -23,6 +24,7 @@ interface Item {
 
 const ITEMS: Item[] = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' },
+  { to: '/alerts', icon: Bell, key: 'alertsScreen' },
   { to: '/history', icon: LineChart, key: 'history' },
   { to: '/chat', icon: MessageSquare, key: 'askAi' },
   { to: '/settings', icon: Settings, key: 'settings' },

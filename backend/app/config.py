@@ -37,8 +37,11 @@ class Settings(BaseSettings):
     # --- CORS ---
     cors_origins: str = "http://localhost:8082,http://127.0.0.1:8082"
 
-    # --- Alerting (POSTs JSON to any webhook: n8n / Telegram / Slack) ---
+    # --- Alerting (POSTs JSON to any webhook: n8n / Slack / Discord auto-detected) ---
     alert_webhook_url: str = ""
+    # Optional Telegram channel (bot token + chat id) in addition to the webhook.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
     alert_cooldown_seconds: int = 600
     cpu_alert_percent: float = 90.0
     mem_alert_percent: float = 90.0
@@ -72,6 +75,9 @@ class Settings(BaseSettings):
     # --- AI-assisted container deploy (admin reviews the plan, then installs) ---
     # Set ALLOW_CONTAINER_DEPLOY=false to disable the "Install" button entirely.
     allow_container_deploy: bool = True
+
+    # --- AI cost guardrail: monthly token budget per user (0 = unlimited) ---
+    ai_monthly_token_budget: int = 0
 
     @property
     def cors_origin_list(self) -> list[str]:

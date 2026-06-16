@@ -11,7 +11,7 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 @router.post("", response_model=AnalyzeResponse)
 async def analyze_container_logs(
-    request: AnalyzeRequest, _: dict = Depends(require_user)
+    request: AnalyzeRequest, claims: dict = Depends(require_user)
 ) -> AnalyzeResponse:
     if not request.ai_config.base_url or not request.ai_config.model_name:
         raise HTTPException(
@@ -39,6 +39,7 @@ async def analyze_container_logs(
             request.ai_config,
             request.custom_prompt,
             request.lang,
+            claims.get("sub", ""),
         )
     except Exception as exc:
         raise HTTPException(

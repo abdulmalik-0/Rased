@@ -4,11 +4,18 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 
 from app import db
+import os
+import tempfile
+
+from fastapi.responses import FileResponse
+
+from app.config import settings
 from app.models.schemas import (
     AIProviderConfig,
     ChatUpsert,
     DeviceOverride,
     LinkUpsert,
+    ThresholdUpdate,
     UserUpdate,
 )
 from app.services.auth import require_admin, require_user
@@ -141,6 +148,49 @@ async def get_alerts(
 @router.get("/audit")
 async def get_audit(limit: int = 200, _: dict = Depends(require_admin)) -> list[dict]:
     return await db.list_audit(max(1, min(limit, 1000)))
+
+
+@router.patch("/alerts/{alert_id}")
+async def patch_alert(
+    alert_id: int, action: str = "ack", _: dict = Depends(require_user)
+) -> dict:
+    if action == "resolve":
+        await db.resolve_alert(alert_id)
+    else:
+        await db.ack_alert(alert_id)
+    return {"status": "ok"}
+
+
+# ---------- per-host alert thresholds ----------
+@router.get("/thresholds")
+async def get_thresholds(host_id: str, _: dict = Depends(require_user)) -> dict:
+    return (await db.get_thresholds(host_id)) or {}
+
+
+@router.put("/thresholds")
+async def put_thresholds(body: ThresholdUpdate, admin: dict = Depends(require_admin)) -> dict:
+    await db.set_thresholds(
+        body.host_id, body.cpu, body.mem, body.disk, body.battery
+    )
+    await db.insert_audit(admin.get("email", ""), "thresholds.set", body.host_id, "")
+    return {"status": "ok"}
+
+
+# ---------- AI usage accounting (admin) ----------
+@router.get("/usage")
+async def get_usage(_: dict = Depends(require_admin)) -> list[dict]:
+    return await db.usage_summary()
+
+
+# ---------- DB backup (admin) ----------
+@router.get("/admin/backup")
+async def backup_db(admin: dict = Depends(require_admin)):
+    path = os.path.join(tempfile.gettempdir(), "rased-backup.db")
+    await db.backup_to(path)
+    await db.insert_audit(admin.get("email", ""), "db.backup", "", "")
+    return FileResponse(
+        path, media_type="application/octet-stream", filename="rased-backup.db"
+    )
 
 
 # ---------- AI chats ----------

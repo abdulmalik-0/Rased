@@ -67,6 +67,18 @@ docker-compose.agent.yml  extra machine: agent only
 
 ## Quick start (single host)
 
+### Fastest: one command (prebuilt GHCR images, no build)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/abdulmalik-0/Rased/main/scripts/bootstrap-central.sh | bash
+```
+Installs Docker if missing, generates `.env` with random secrets (asks only for the
+server IP), pulls `ghcr.io/abdulmalik-0/rased-{api,ui}`, and starts everything. The UI
+image reads the backend URL at runtime — no rebuild per server. Then open
+`http://YOUR_IP:8082` and create the first (admin) account.
+
+### Or build from source
+
 ### 1. Build the web UI (once)
 
 The UI is React + Tailwind + Tremor (in `web/`). Only the backend URL is baked in:

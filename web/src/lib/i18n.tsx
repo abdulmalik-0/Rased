@@ -180,6 +180,24 @@ const en: Record<string, string> = {
   deployImageHint: 'Image — e.g. linuxserver/jellyfin',
   deployImageBtn: 'Pull & run',
   openAt: 'Open',
+  // alerts screen
+  alertsScreen: 'Alerts',
+  acknowledge: 'Ack',
+  resolve: 'Resolve',
+  resolved: 'Resolved',
+  acked: 'Acknowledged',
+  noAlerts: 'No alerts',
+  allHosts: 'All hosts',
+  // thresholds
+  thresholds: 'Alert thresholds',
+  thresholdsHint: 'Leave blank to use the global default.',
+  // admin tools
+  adminTools: 'Admin tools',
+  backupDb: 'Download DB backup',
+  aiUsage: 'AI usage',
+  tokens: 'Tokens',
+  calls: 'Calls',
+  usageHistory: 'Usage history',
 }
 
 const ar: Record<string, string> = {
@@ -355,6 +373,24 @@ const ar: Record<string, string> = {
   deployImageHint: 'الصورة — مثل linuxserver/jellyfin',
   deployImageBtn: 'حمّل وشغّل',
   openAt: 'افتح',
+  // alerts screen
+  alertsScreen: 'التنبيهات',
+  acknowledge: 'تأكيد',
+  resolve: 'حلّ',
+  resolved: 'محلول',
+  acked: 'مؤكَّد',
+  noAlerts: 'لا توجد تنبيهات',
+  allHosts: 'كل الأجهزة',
+  // thresholds
+  thresholds: 'عتبات التنبيه',
+  thresholdsHint: 'اتركه فارغاً لاستخدام الافتراضي العام.',
+  // admin tools
+  adminTools: 'أدوات الأدمن',
+  backupDb: 'تنزيل نسخة احتياطية',
+  aiUsage: 'استهلاك الذكاء',
+  tokens: 'التوكنات',
+  calls: 'الطلبات',
+  usageHistory: 'سجل الاستخدام',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }
