@@ -104,6 +104,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
     detail TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
+CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -599,6 +603,25 @@ async def list_audit(limit: int = 200) -> list[dict]:
         (limit,),
     ) as cur:
         return [dict(r) for r in await cur.fetchall()]
+
+
+# ---------- app config (admin-editable runtime settings) ----------
+async def get_all_config() -> dict[str, str]:
+    async with conn().execute("SELECT key, value FROM app_config") as cur:
+        return {r["key"]: r["value"] for r in await cur.fetchall()}
+
+
+async def set_config_many(values: dict[str, str | None]) -> None:
+    for key, value in values.items():
+        if value is None or value == "":
+            await conn().execute("DELETE FROM app_config WHERE key = ?", (key,))
+        else:
+            await conn().execute(
+                "INSERT INTO app_config (key, value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, str(value)),
+            )
+    await conn().commit()
 
 
 # ---------- ai_chats ----------

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.config import settings
+from app.services import app_config
 from app.models.schemas import HostStats, MetricsPayload
 from app.routers import (
     actions,
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
         )
     if settings.is_central:
         await db.init_db()
+        await app_config.refresh()
     task = asyncio.create_task(collector_loop())
     logger.info(
         "Rased agent started (host=%s, central=%s)",

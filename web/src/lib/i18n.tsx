@@ -198,6 +198,15 @@ const en: Record<string, string> = {
   tokens: 'Tokens',
   calls: 'Calls',
   usageHistory: 'Usage history',
+  // notifications & alerting config
+  notifTitle: 'Notifications & alerting',
+  notifHint: 'Saved on the server — overrides .env, no redeploy needed.',
+  webhookUrl: 'Webhook URL (Slack / Discord / generic)',
+  telegramToken: 'Telegram bot token',
+  telegramChat: 'Telegram chat ID',
+  cooldownSecs: 'Cooldown (seconds)',
+  aiBudget: 'AI monthly token budget (0 = unlimited)',
+  globalThresholds: 'Global alert thresholds (%)',
 }
 
 const ar: Record<string, string> = {
@@ -391,6 +400,15 @@ const ar: Record<string, string> = {
   tokens: 'التوكنات',
   calls: 'الطلبات',
   usageHistory: 'سجل الاستخدام',
+  // notifications & alerting config
+  notifTitle: 'الإشعارات والتنبيهات',
+  notifHint: 'يُحفظ في الخادم — يتجاوز .env بلا إعادة نشر.',
+  webhookUrl: 'رابط Webhook (Slack / Discord / عام)',
+  telegramToken: 'توكن بوت Telegram',
+  telegramChat: 'معرّف محادثة Telegram',
+  cooldownSecs: 'التهدئة (ثوانٍ)',
+  aiBudget: 'ميزانية توكنات الذكاء شهرياً (0 = بلا حد)',
+  globalThresholds: 'العتبات العامة للتنبيه (%)',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }

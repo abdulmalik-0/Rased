@@ -12,12 +12,14 @@ from fastapi.responses import FileResponse
 from app.config import settings
 from app.models.schemas import (
     AIProviderConfig,
+    AppConfigUpdate,
     ChatUpsert,
     DeviceOverride,
     LinkUpsert,
     ThresholdUpdate,
     UserUpdate,
 )
+from app.services import app_config
 from app.services.auth import require_admin, require_user
 from app.services.crypto import decrypt, encrypt
 
@@ -191,6 +193,25 @@ async def backup_db(admin: dict = Depends(require_admin)):
     return FileResponse(
         path, media_type="application/octet-stream", filename="rased-backup.db"
     )
+
+
+# ---------- Runtime config (admin-editable; overrides .env) ----------
+@router.get("/admin/config")
+async def get_admin_config(_: dict = Depends(require_admin)) -> dict:
+    return app_config.effective()
+
+
+@router.put("/admin/config")
+async def set_admin_config(
+    body: AppConfigUpdate, admin: dict = Depends(require_admin)
+) -> dict:
+    values = body.model_dump(exclude_unset=True)
+    await db.set_config_many(values)
+    app_config.update(values)
+    await db.insert_audit(
+        admin.get("email", ""), "config.update", "", ",".join(values.keys())
+    )
+    return app_config.effective()
 
 
 # ---------- AI chats ----------

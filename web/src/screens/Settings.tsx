@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BarChart3, Database, Download, Loader2, Save, Sparkles } from 'lucide-react'
+import { BarChart3, Bell, Database, Download, Loader2, Save, Sparkles } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
@@ -133,7 +133,110 @@ export default function Settings() {
         )}
       </div>
 
+      <AlertingConfig />
       <AdminTools />
+    </div>
+  )
+}
+
+function AlertingConfig() {
+  const { t } = useI18n()
+  const { session } = useAuth()
+  const toast = useToast()
+  const [cfg, setCfg] = useState<Record<string, string>>({})
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin(session)) return
+    api
+      .getAdminConfig()
+      .then((c) => {
+        const s: Record<string, string> = {}
+        for (const [k, v] of Object.entries(c)) s[k] = v == null ? '' : String(v)
+        setCfg(s)
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [session])
+
+  if (!isAdmin(session)) return null
+  const set = (k: string) => (v: string) => setCfg((p) => ({ ...p, [k]: v }))
+
+  async function save() {
+    setSaving(true)
+    try {
+      await api.setAdminConfig(cfg)
+      toast(t('settingsSaved'))
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Bell size={18} />
+        </span>
+        <div>
+          <div className="font-semibold text-text-primary">{t('notifTitle')}</div>
+          <div className="text-xs text-text-secondary">{t('notifHint')}</div>
+        </div>
+      </div>
+
+      {!loaded ? (
+        <div className="grid place-items-center py-6">
+          <Loader2 className="animate-spin text-primary" size={20} />
+        </div>
+      ) : (
+        <>
+          <Input
+            label={t('webhookUrl')}
+            value={cfg.alert_webhook_url ?? ''}
+            onChange={set('alert_webhook_url')}
+            placeholder="https://hooks.slack.com/services/…"
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label={t('telegramToken')}
+              value={cfg.telegram_bot_token ?? ''}
+              onChange={set('telegram_bot_token')}
+              type="password"
+            />
+            <Input
+              label={t('telegramChat')}
+              value={cfg.telegram_chat_id ?? ''}
+              onChange={set('telegram_chat_id')}
+            />
+          </div>
+
+          <div className="text-xs font-medium text-text-secondary">
+            {t('globalThresholds')}
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Input label={t('hostCpu')} value={cfg.cpu_alert_percent ?? ''} onChange={set('cpu_alert_percent')} type="number" />
+            <Input label={t('hostMemory')} value={cfg.mem_alert_percent ?? ''} onChange={set('mem_alert_percent')} type="number" />
+            <Input label={t('disk')} value={cfg.disk_alert_percent ?? ''} onChange={set('disk_alert_percent')} type="number" />
+            <Input label={t('battery')} value={cfg.battery_alert_percent ?? ''} onChange={set('battery_alert_percent')} type="number" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input label={t('cooldownSecs')} value={cfg.alert_cooldown_seconds ?? ''} onChange={set('alert_cooldown_seconds')} type="number" />
+            <Input label={t('aiBudget')} value={cfg.ai_monthly_token_budget ?? ''} onChange={set('ai_monthly_token_budget')} type="number" />
+          </div>
+
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+            {t('saveSettings')}
+          </button>
+        </>
+      )}
     </div>
   )
 }

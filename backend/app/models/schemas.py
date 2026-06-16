@@ -238,3 +238,17 @@ class ChatUpsert(BaseModel):
     host_id: str = "default"
     title: str = "Chat"
     messages: list[dict] = Field(default_factory=list)
+
+
+class AppConfigUpdate(BaseModel):
+    """Admin-editable runtime config. Only provided fields are changed; an empty
+    string clears the override (falls back to the env default)."""
+    alert_webhook_url: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    alert_cooldown_seconds: int | None = None
+    cpu_alert_percent: float | None = None
+    mem_alert_percent: float | None = None
+    disk_alert_percent: float | None = None
+    battery_alert_percent: float | None = None
+    ai_monthly_token_budget: int | None = None

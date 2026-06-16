@@ -210,6 +210,24 @@ export const api = {
     const r = await handle(await fetch(`${backendUrl}/usage`, { headers: headers() }))
     return r.json()
   },
+  async getAdminConfig(): Promise<Record<string, string | number>> {
+    const r = await handle(
+      await fetch(`${backendUrl}/admin/config`, { headers: headers() }),
+    )
+    return r.json()
+  },
+  async setAdminConfig(
+    values: Record<string, string | number | null>,
+  ): Promise<Record<string, string | number>> {
+    const r = await handle(
+      await fetch(`${backendUrl}/admin/config`, {
+        method: 'PUT',
+        headers: headers(true),
+        body: JSON.stringify(values),
+      }),
+    )
+    return r.json()
+  },
   async downloadBackup(): Promise<void> {
     const resp = await fetch(`${backendUrl}/admin/backup`, { headers: headers() })
     if (!resp.ok) throw new Error('Backup failed')

@@ -5,6 +5,7 @@ import httpx
 from app import db
 from app.config import settings
 from app.models.schemas import AIProviderConfig
+from app.services import app_config
 from app.services.sanitization import sanitize_text
 
 ANALYZE_SYSTEM_PROMPT = """You are a DevOps assistant analyzing Docker container logs.
@@ -165,16 +166,13 @@ async def _chat(
     kind: str = "",
 ) -> str:
     # Per-user monthly token budget (central only; agents have no DB).
-    if (
-        settings.is_central
-        and settings.ai_monthly_token_budget > 0
-        and user_id
-    ):
+    budget = app_config.ai_budget() if settings.is_central else 0
+    if settings.is_central and budget > 0 and user_id:
         try:
             used = await db.usage_tokens_since(user_id, _month_start_iso())
         except Exception:  # noqa: BLE001
             used = 0
-        if used >= settings.ai_monthly_token_budget:
+        if used >= budget:
             raise ValueError("Monthly AI token budget exceeded")
 
     if _is_anthropic(ai_config):

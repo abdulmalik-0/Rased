@@ -14,6 +14,7 @@ from app.models.schemas import (
     MetricsPayload,
     UpsStatus,
 )
+from app.services import app_config
 from app.services.ai_router import analyze_logs, config_from_settings, daily_digest
 from app.services.alert_service import alert_service
 from app.services.docker_service import docker_service
@@ -303,6 +304,7 @@ async def collector_loop() -> None:
                 await _scan_dead_agents()
                 try:
                     alert_service.thresholds_cache = await db.all_thresholds()
+                    await app_config.refresh()
                 except Exception:  # noqa: BLE001
                     pass
 

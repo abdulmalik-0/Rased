@@ -6,6 +6,7 @@ import httpx
 from app import db
 from app.config import settings
 from app.models.schemas import Alert, MetricsPayload
+from app.services import app_config
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +54,18 @@ class AlertService:
 
         hid = payload.host_id
         if host.available:
-            if host.cpu_percent >= self._thr(hid, "cpu", settings.cpu_alert_percent):
+            if host.cpu_percent >= self._thr(hid, "cpu", app_config.cpu_default()):
                 alerts.append(Alert(level="warning", kind="cpu", target="host",
                                     value=host.cpu_percent,
                                     message=f"Host CPU at {host.cpu_percent:.0f}%",
                                     timestamp=ts))
-            if host.memory_percent >= self._thr(hid, "mem", settings.mem_alert_percent):
+            if host.memory_percent >= self._thr(hid, "mem", app_config.mem_default()):
                 alerts.append(Alert(level="warning", kind="memory", target="host",
                                     value=host.memory_percent,
                                     message=f"Host memory at {host.memory_percent:.0f}%",
                                     timestamp=ts))
             for disk in host.disks:
-                if disk.percent >= self._thr(hid, "disk", settings.disk_alert_percent):
+                if disk.percent >= self._thr(hid, "disk", app_config.disk_default()):
                     alerts.append(Alert(
                         level="critical" if disk.percent >= 95 else "warning",
                         kind="disk", target=disk.mount, value=disk.percent,
@@ -98,7 +99,7 @@ class AlertService:
                                 message="UPS is running on battery", timestamp=ts))
         if (ups.connected and ups.battery_charge_percent is not None
                 and ups.battery_charge_percent
-                <= self._thr(hid, "battery", settings.battery_alert_percent)):
+                <= self._thr(hid, "battery", app_config.battery_default())):
             alerts.append(Alert(level="warning", kind="ups", target="battery",
                                 value=ups.battery_charge_percent,
                                 message=f"UPS battery low: {ups.battery_charge_percent:.0f}%",
@@ -122,7 +123,7 @@ class AlertService:
         sent: list[Alert] = []
         for alert in alerts:
             key = f"{host_id}:{alert.kind}:{alert.target}"
-            if now - self._last_sent.get(key, 0.0) < settings.alert_cooldown_seconds:
+            if now - self._last_sent.get(key, 0.0) < app_config.cooldown():
                 continue
             self._last_sent[key] = now
             self.recent.setdefault(host_id, []).append(alert)
@@ -143,20 +144,20 @@ class AlertService:
         """Deliver to every configured channel (webhook + Telegram). Slack/Discord
         webhooks are auto-detected and formatted. Returns True if any succeeded."""
         text = f"[{alert.level.upper()}] {host_id}: {alert.message}"
+        webhook = app_config.webhook_url()
+        tg_token, tg_chat = app_config.telegram_token(), app_config.telegram_chat()
         ok = False
-        if settings.alert_webhook_url:
-            ok = await self._deliver(settings.alert_webhook_url,
-                                     self._webhook_body(text, alert, host_id)) or ok
-        if settings.telegram_bot_token and settings.telegram_chat_id:
-            url = (f"https://api.telegram.org/bot{settings.telegram_bot_token}"
-                   "/sendMessage")
-            ok = await self._deliver(
-                url, {"chat_id": settings.telegram_chat_id, "text": text}) or ok
+        if webhook:
+            ok = await self._deliver(webhook,
+                                     self._webhook_body(webhook, text, alert, host_id)) or ok
+        if tg_token and tg_chat:
+            url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
+            ok = await self._deliver(url, {"chat_id": tg_chat, "text": text}) or ok
         return ok
 
     @staticmethod
-    def _webhook_body(text: str, alert: Alert, host_id: str) -> dict:
-        low = settings.alert_webhook_url.lower()
+    def _webhook_body(webhook: str, text: str, alert: Alert, host_id: str) -> dict:
+        low = webhook.lower()
         if "hooks.slack.com" in low:
             return {"text": text}
         if "discord.com/api/webhooks" in low or "discordapp.com/api/webhooks" in low:
