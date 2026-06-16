@@ -60,6 +60,9 @@ services:
       ALLOW_CONTAINER_DEPLOY: ${ALLOW_CONTAINER_DEPLOY:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   rased-ui:
     image: nginx:alpine
@@ -71,6 +74,14 @@ services:
       - ./web/dist:/usr/share/nginx/html:ro
     depends_on:
       - rased-api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
 volumes:
   rased-data:

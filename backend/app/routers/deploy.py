@@ -6,6 +6,7 @@
 from docker.errors import APIError, DockerException, ImageNotFound
 from fastapi import APIRouter, Depends, HTTPException
 
+from app import db
 from app.config import settings
 from app.models.schemas import (
     DeployImageRequest,
@@ -55,7 +56,7 @@ async def plan_deploy(
 @router.post("/run", response_model=DeployRunResponse)
 async def run_deploy(
     plan: DeployPlan,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ) -> DeployRunResponse:
     if not settings.allow_container_deploy:
         raise HTTPException(
@@ -70,13 +71,14 @@ async def run_deploy(
         raise HTTPException(status_code=400, detail=f"Docker error: {exc}")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await db.insert_audit(admin.get("email", ""), "deploy.run", plan.image, plan.name)
     return DeployRunResponse(**result)
 
 
 @router.post("/image", response_model=DeployRunResponse)
 async def run_image(
     req: DeployImageRequest,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ) -> DeployRunResponse:
     """Pull and run an image directly (auto-publishing its ports to free ones)."""
     if not settings.allow_container_deploy:
@@ -94,4 +96,5 @@ async def run_image(
         raise HTTPException(status_code=400, detail=f"Docker error: {exc}")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await db.insert_audit(admin.get("email", ""), "deploy.image", req.image, "")
     return DeployRunResponse(**result)

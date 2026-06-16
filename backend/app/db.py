@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS metrics_history (
     containers TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_mh_ts ON metrics_history(ts);
+CREATE INDEX IF NOT EXISTS idx_mh_host_ts ON metrics_history(host_id, ts);
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     message TEXT,
     value REAL
 );
+CREATE INDEX IF NOT EXISTS idx_alerts_host_ts ON alerts(host_id, ts);
 CREATE TABLE IF NOT EXISTS ai_chats (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -74,6 +76,16 @@ CREATE TABLE IF NOT EXISTS ai_chats (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_chats_user_host ON ai_chats(user_id, host_id, updated_at);
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    target TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
 """
 
 
@@ -313,10 +325,17 @@ async def insert_history(
     await conn().commit()
 
 
-async def bucketed_history(hours: int, buckets: int = 200) -> list[dict]:
+async def bucketed_history(
+    hours: int, buckets: int = 200, host_id: str | None = None
+) -> list[dict]:
     bucket_secs = max(1, (hours * 3600) // max(1, buckets))
     since = datetime.now(timezone.utc).timestamp() - hours * 3600
-    sql = """
+    where = "strftime('%s', ts) >= ?"
+    params: list = [bucket_secs, bucket_secs, int(since)]
+    if host_id:
+        where += " AND host_id = ?"
+        params.append(host_id)
+    sql = f"""
         SELECT
             CAST(strftime('%s', ts) AS INTEGER) / ? * ? AS bucket,
             AVG(host_cpu) AS host_cpu,
@@ -324,19 +343,15 @@ async def bucketed_history(hours: int, buckets: int = 200) -> list[dict]:
             MAX(host_disk_max) AS host_disk_max,
             MAX(containers_running) AS containers_running
         FROM metrics_history
-        WHERE strftime('%s', ts) >= ?
+        WHERE {where}
         GROUP BY bucket
         ORDER BY bucket
     """
-    async with conn().execute(
-        sql, (bucket_secs, bucket_secs, int(since))
-    ) as cur:
+    async with conn().execute(sql, params) as cur:
         rows = await cur.fetchall()
     return [
         {
-            "ts": datetime.fromtimestamp(
-                int(r["bucket"]), tz=timezone.utc
-            ).isoformat(),
+            "ts": datetime.fromtimestamp(int(r["bucket"]), tz=timezone.utc).isoformat(),
             "host_cpu": r["host_cpu"],
             "host_mem": r["host_mem"],
             "host_disk_max": r["host_disk_max"],
@@ -346,14 +361,56 @@ async def bucketed_history(hours: int, buckets: int = 200) -> list[dict]:
     ]
 
 
+async def container_history(
+    hours: int, host_id: str, name: str, max_points: int = 300
+) -> list[dict]:
+    """Per-container CPU/RAM series, extracted from the stored containers JSON."""
+    since = datetime.now(timezone.utc).timestamp() - hours * 3600
+    async with conn().execute(
+        "SELECT ts, containers FROM metrics_history "
+        "WHERE host_id = ? AND strftime('%s', ts) >= ? ORDER BY ts",
+        (host_id, int(since)),
+    ) as cur:
+        rows = await cur.fetchall()
+    step = max(1, len(rows) // max_points)
+    out: list[dict] = []
+    for i, r in enumerate(rows):
+        if i % step != 0:
+            continue
+        try:
+            for c in json.loads(r["containers"] or "[]"):
+                if c.get("name") == name:
+                    out.append(
+                        {"ts": r["ts"], "cpu": c.get("cpu"), "mem": c.get("mem")}
+                    )
+                    break
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
 async def prune_history(retain_days: int = 14) -> None:
-    cutoff = (
-        datetime.now(timezone.utc).timestamp() - retain_days * 86400
-    )
+    cutoff = datetime.now(timezone.utc).timestamp() - retain_days * 86400
     await conn().execute(
         "DELETE FROM metrics_history WHERE strftime('%s', ts) < ?", (int(cutoff),)
     )
     await conn().commit()
+
+
+async def prune_alerts(retain_days: int = 30) -> None:
+    cutoff = datetime.now(timezone.utc).timestamp() - retain_days * 86400
+    await conn().execute(
+        "DELETE FROM alerts WHERE strftime('%s', ts) < ?", (int(cutoff),)
+    )
+    await conn().commit()
+
+
+async def checkpoint_wal() -> None:
+    """Truncate the WAL so it doesn't grow unbounded between restarts."""
+    try:
+        await conn().execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # ---------- alerts ----------
@@ -366,6 +423,39 @@ async def insert_alert(
         (ts, host_id, level, kind, target, message, value),
     )
     await conn().commit()
+
+
+async def list_alerts(host_id: str | None = None, limit: int = 100) -> list[dict]:
+    sql = "SELECT ts, host_id, level, kind, target, message, value FROM alerts"
+    params: list = []
+    if host_id:
+        sql += " WHERE host_id = ?"
+        params.append(host_id)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    async with conn().execute(sql, params) as cur:
+        return [dict(r) for r in await cur.fetchall()]
+
+
+# ---------- audit ----------
+async def insert_audit(actor: str, action: str, target: str = "", detail: str = "") -> None:
+    try:
+        await conn().execute(
+            "INSERT INTO audit_log (ts, actor, action, target, detail) VALUES (?,?,?,?,?)",
+            (_now(), actor, action, target, detail),
+        )
+        await conn().commit()
+    except Exception:  # noqa: BLE001 — auditing must never break the action
+        pass
+
+
+async def list_audit(limit: int = 200) -> list[dict]:
+    async with conn().execute(
+        "SELECT ts, actor, action, target, detail FROM audit_log "
+        "ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ) as cur:
+        return [dict(r) for r in await cur.fetchall()]
 
 
 # ---------- ai_chats ----------

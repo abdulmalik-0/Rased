@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import docker
 from docker.errors import DockerException
@@ -8,6 +9,20 @@ from app.models.schemas import ContainerMetrics
 logger = logging.getLogger(__name__)
 
 ALLOWED_ACTIONS = ("restart", "stop", "start")
+
+# Host paths an AI-planned container must never bind-mount (defense beyond review).
+_DENY_BIND_PREFIXES = (
+    "/etc", "/var/run", "/run", "/proc", "/sys", "/root", "/boot", "/dev",
+)
+
+
+def _is_unsafe_bind(host_path: str) -> bool:
+    p = host_path.strip()
+    if not p.startswith("/"):
+        return False  # a named volume — safe
+    if "docker.sock" in p or p == "/":
+        return True
+    return any(p == d or p.startswith(d + "/") for d in _DENY_BIND_PREFIXES)
 
 
 class DockerService:
@@ -99,6 +114,8 @@ class DockerService:
             vh = str(v.get("host") or "").strip()
             vc = str(v.get("container") or "").strip()
             if vh and vc:
+                if _is_unsafe_bind(vh):
+                    raise ValueError(f"Refusing unsafe host bind mount: {vh}")
                 volumes[vh] = {"bind": vc, "mode": "rw"}
 
         env = {str(k): str(val) for k, val in (spec.get("env") or {}).items()}
@@ -172,51 +189,67 @@ class DockerService:
             return 0.0, 0.0, 0.0
 
     def list_container_metrics(self) -> list[ContainerMetrics]:
-        containers: list[ContainerMetrics] = []
         try:
-            for container in self.client.containers.list(all=True):
-                cpu_percent = 0.0
-                mem_usage, mem_limit, mem_percent = 0.0, 0.0, 0.0
-                if container.status == "running":
-                    try:
-                        stats = container.stats(stream=False)
-                        cpu_percent = round(self._calc_cpu_percent(stats), 2)
-                        mem_usage, mem_limit, mem_percent = self._calc_memory(stats)
-                        mem_usage = round(mem_usage, 2)
-                        mem_limit = round(mem_limit, 2)
-                        mem_percent = round(mem_percent, 2)
-                    except DockerException as exc:
-                        logger.warning("Stats unavailable for %s: %s", container.id, exc)
-
-                tags = container.image.tags if container.image else []
-                ports: list[str] = []
-                try:
-                    for _cport, bindings in (container.ports or {}).items():
-                        for b in bindings or []:
-                            hp = b.get("HostPort")
-                            if hp and hp not in ports:
-                                ports.append(hp)
-                except (AttributeError, TypeError):
-                    pass
-
-                containers.append(
-                    ContainerMetrics(
-                        id=container.id[:12],
-                        name=container.name.lstrip("/"),
-                        status=container.status,
-                        image=tags[0] if tags else "unknown",
-                        cpu_percent=cpu_percent,
-                        memory_usage_mb=mem_usage,
-                        memory_limit_mb=mem_limit,
-                        memory_percent=mem_percent,
-                        restart_count=int(container.attrs.get("RestartCount", 0) or 0),
-                        ports=sorted(ports, key=lambda x: int(x) if x.isdigit() else 0),
-                    )
-                )
+            containers = self.client.containers.list(all=True)
         except DockerException as exc:
             logger.error("Docker connection failed: %s", exc)
+            return []
 
-        return containers
+        # Each stats() call blocks ~1-2s; fetch running containers concurrently so a
+        # 20-container host doesn't take 20-40s per collector tick.
+        def _stats(c):
+            try:
+                return c.id, c.stats(stream=False)
+            except DockerException as exc:
+                logger.warning("Stats unavailable for %s: %s", c.id, exc)
+                return c.id, None
+
+        running = [c for c in containers if c.status == "running"]
+        stats_by_id: dict[str, dict] = {}
+        if running:
+            with ThreadPoolExecutor(max_workers=min(8, len(running))) as pool:
+                for cid, st in pool.map(_stats, running):
+                    if st is not None:
+                        stats_by_id[cid] = st
+
+        result: list[ContainerMetrics] = []
+        for container in containers:
+            cpu_percent = 0.0
+            mem_usage, mem_limit, mem_percent = 0.0, 0.0, 0.0
+            st = stats_by_id.get(container.id)
+            if st is not None:
+                cpu_percent = round(self._calc_cpu_percent(st), 2)
+                mem_usage, mem_limit, mem_percent = self._calc_memory(st)
+                mem_usage = round(mem_usage, 2)
+                mem_limit = round(mem_limit, 2)
+                mem_percent = round(mem_percent, 2)
+
+            tags = container.image.tags if container.image else []
+            ports: list[str] = []
+            try:
+                for _cport, bindings in (container.ports or {}).items():
+                    for b in bindings or []:
+                        hp = b.get("HostPort")
+                        if hp and hp not in ports:
+                            ports.append(hp)
+            except (AttributeError, TypeError):
+                pass
+
+            result.append(
+                ContainerMetrics(
+                    id=container.id[:12],
+                    name=container.name.lstrip("/"),
+                    status=container.status,
+                    image=tags[0] if tags else "unknown",
+                    cpu_percent=cpu_percent,
+                    memory_usage_mb=mem_usage,
+                    memory_limit_mb=mem_limit,
+                    memory_percent=mem_percent,
+                    restart_count=int(container.attrs.get("RestartCount", 0) or 0),
+                    ports=sorted(ports, key=lambda x: int(x) if x.isdigit() else 0),
+                )
+            )
+        return result
 
 
 docker_service = DockerService()

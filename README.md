@@ -29,7 +29,7 @@ database: the agent uses **SQLite**, so the whole stack is just two containers
 ```
             WebSocket (live, all hosts)        ┌──────────────────────────┐
  ┌────────────┐  REST: auth/settings/users/    │  CENTRAL rased-api        │
- │ Flutter UI │◄─devices/history/chats─────────│  FastAPI + SQLite (/data) │
+ │  React UI  │◄─devices/history/chats─────────│  FastAPI + SQLite (/data) │
  └─────┬──────┘  actions/logs/analyze/ask      │  + WebSocket + auth(JWT)  │
        │            (to a device's api_url)     └─────────┬────────────────┘
        │                                            ▲     │ Docker + NUT (local)
@@ -50,7 +50,8 @@ database: the agent uses **SQLite**, so the whole stack is just two containers
 
 ```
 backend/   FastAPI agent (Python) — app/db.py (SQLite), services/, routers/
-frontend/  Flutter (Web) — lib/{services/api_service.dart, providers, screens, widgets}
+web/       React + Vite + Tailwind + Tremor UI (src/, builds to web/dist) — the active UI
+frontend/  legacy Flutter UI (no longer served; kept for reference)
 scripts/   install.sh (central), bootstrap-agent.sh + install-agent.sh (extra machine), up.sh
 docker-compose.yml        central: rased-api + rased-ui (+ sqlite volume)
 docker-compose.agent.yml  extra machine: agent only
@@ -59,7 +60,7 @@ docker-compose.agent.yml  extra machine: agent only
 ## Prerequisites
 
 - **Docker** + Compose v2 (`docker compose version`)
-- **Flutter 3.16+** to build the web UI
+- **Node 20+** to build the web UI (`cd web && npm install && npm run build`)
 - Free ports on the central host: **8082** (UI), **8002** (API)
 
 ---

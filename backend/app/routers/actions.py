@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from docker.errors import DockerException, NotFound
 
+from app import db
 from app.models.schemas import ContainerActionRequest, ContainerActionResponse
 from app.services.auth import require_admin
 from app.services.docker_service import ALLOWED_ACTIONS, docker_service
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/actions", tags=["actions"])
 async def container_action(
     container_id: str,
     request: ContainerActionRequest,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ) -> ContainerActionResponse:
     action = request.action.lower().strip()
     if action not in ALLOWED_ACTIONS:
@@ -30,6 +31,7 @@ async def container_action(
     except DockerException as exc:
         raise HTTPException(status_code=503, detail=f"Docker error: {exc}")
 
+    await db.insert_audit(admin.get("email", ""), f"container.{action}", container_id, "")
     return ContainerActionResponse(
         container_id=container_id,
         action=action,

@@ -172,9 +172,13 @@ export const api = {
   },
 
   // ---- history ----
-  async getHistory(hours: number): Promise<Record<string, unknown>[]> {
+  async getHistory(
+    hours: number,
+    hostId?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const q = hostId ? `&host_id=${encodeURIComponent(hostId)}` : ''
     const r = await handle(
-      await fetch(`${backendUrl}/history?hours=${hours}`, { headers: headers() }),
+      await fetch(`${backendUrl}/history?hours=${hours}${q}`, { headers: headers() }),
     )
     return r.json()
   },

@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # --- History persistence (downsampled snapshots) ---
     history_enabled: bool = True
     history_interval_seconds: int = 60
+    history_retain_days: int = 14
+    alert_retain_days: int = 30
+    maintenance_hour_utc: int = 4  # daily prune + WAL checkpoint
+    agent_stale_factor: int = 4  # alert if a node hasn't reported in N*interval
 
     # --- Server-side AI (autonomous digest / proactive triage) ---
     ai_base_url: str = ""
@@ -98,6 +102,16 @@ class Settings(BaseSettings):
     def is_central(self) -> bool:
         """Central node owns the DB + WebSocket; remote agents POST to it."""
         return not self.central_ingest_url
+
+    @property
+    def insecure_secrets(self) -> list[str]:
+        """Names of secrets still left at their shipped default (must be changed)."""
+        bad = []
+        if self.jwt_secret.startswith("change-me"):
+            bad.append("JWT_SECRET")
+        if self.encryption_key.startswith("change-me"):
+            bad.append("ENCRYPTION_KEY")
+        return bad
 
     class Config:
         env_file = ".env"

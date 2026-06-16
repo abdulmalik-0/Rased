@@ -210,11 +210,62 @@ async def _maybe_digest(payload: MetricsPayload, last_day):
     return last_day
 
 
+async def _maybe_maintain(last_day):
+    """Daily prune of old history/alerts + WAL checkpoint, so the DB can't grow
+    unbounded and fill the LXC it monitors."""
+    if not settings.is_central:
+        return last_day
+    now_dt = datetime.now(timezone.utc)
+    if now_dt.hour == settings.maintenance_hour_utc and last_day != now_dt.date():
+        try:
+            await db.prune_history(settings.history_retain_days)
+            await db.prune_alerts(settings.alert_retain_days)
+            await db.checkpoint_wal()
+            logger.info("Maintenance: pruned history/alerts + WAL checkpoint")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Maintenance failed: %s", exc)
+        return now_dt.date()
+    return last_day
+
+
+async def _scan_dead_agents() -> None:
+    """Alert when a remote agent stops reporting (the monitor monitoring itself)."""
+    if not settings.is_central:
+        return
+    try:
+        devices = await db.list_devices()
+    except Exception:  # noqa: BLE001
+        return
+    threshold = settings.agent_stale_factor * max(5, settings.metrics_interval_seconds)
+    now = datetime.now(timezone.utc)
+    stale: list[Alert] = []
+    for d in devices:
+        if d["host_id"] == settings.host_id:
+            continue
+        last = d.get("last_seen")
+        if not last:
+            continue
+        try:
+            age = (now - datetime.fromisoformat(last)).total_seconds()
+        except ValueError:
+            continue
+        if age > threshold:
+            name = d.get("display_name") or d.get("host_name") or d["host_id"]
+            stale.append(Alert(
+                level="critical", kind="agent_offline", target=name,
+                message=f"Agent '{name}' has not reported in {int(age)}s",
+                timestamp=_now_iso()))
+    if stale:
+        await alert_service.dispatch(stale, time.monotonic(), settings.host_id)
+
+
 async def collector_loop() -> None:
     interval = settings.metrics_interval_seconds
     last_uptime = 0.0
     last_statuses: dict[str, str] = {}
     last_digest_day = None
+    last_maintenance_day = None
+    last_agent_scan = 0.0
 
     logger.info(
         "Collector: central=%s alerts=%s uptime=%s ai=%s",
@@ -246,6 +297,10 @@ async def collector_loop() -> None:
             _maybe_triage(containers, last_statuses)
             last_statuses = {c.id: c.status for c in containers}
             last_digest_day = await _maybe_digest(payload, last_digest_day)
+            last_maintenance_day = await _maybe_maintain(last_maintenance_day)
+            if settings.is_central and now - last_agent_scan >= 60:
+                last_agent_scan = now
+                await _scan_dead_agents()
 
         except asyncio.CancelledError:
             raise

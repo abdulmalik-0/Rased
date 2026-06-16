@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import httpx
@@ -137,13 +138,22 @@ class AlertService:
             "value": alert.value, "host_id": host_id, "message": alert.message,
             "timestamp": alert.timestamp,
         }
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(settings.alert_webhook_url, json=body)
-                return resp.status_code < 400
-        except httpx.HTTPError as exc:
-            logger.warning("Alert webhook error: %s", exc)
-            return False
+        # Retry with backoff so a momentary webhook outage doesn't drop the alert.
+        delays = (0.0, 1.0, 3.0)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for attempt, delay in enumerate(delays, start=1):
+                if delay:
+                    await asyncio.sleep(delay)
+                try:
+                    resp = await client.post(settings.alert_webhook_url, json=body)
+                    if resp.status_code < 400:
+                        return True
+                    logger.warning(
+                        "Alert webhook HTTP %s (attempt %s)", resp.status_code, attempt
+                    )
+                except httpx.HTTPError as exc:
+                    logger.warning("Alert webhook error (attempt %s): %s", attempt, exc)
+        return False
 
 
 alert_service = AlertService()

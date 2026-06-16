@@ -34,14 +34,22 @@ class RealtimeManager:
     async def publish(self, payload: MetricsPayload) -> None:
         self.latest[payload.host_id] = payload
         data = payload.model_dump_json()
-        dead: list[WebSocket] = []
-        for ws in list(self._clients):
+        clients = list(self._clients)
+        if not clients:
+            return
+
+        async def _send(ws: WebSocket) -> WebSocket | None:
             try:
                 await ws.send_text(data)
+                return None
             except Exception:  # noqa: BLE001
-                dead.append(ws)
-        for ws in dead:
-            await self.disconnect(ws)
+                return ws
+
+        # Fan out concurrently so one slow client doesn't stall the rest.
+        results = await asyncio.gather(*(_send(ws) for ws in clients))
+        for ws in results:
+            if ws is not None:
+                await self.disconnect(ws)
 
 
 realtime = RealtimeManager()

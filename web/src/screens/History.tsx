@@ -3,6 +3,7 @@ import { AreaChart } from '@tremor/react'
 import { Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useI18n } from '../lib/i18n'
+import { deviceName, type Device } from '../lib/types'
 
 const RANGES = [
   { key: 'range24h', hours: 24 },
@@ -21,13 +22,26 @@ export default function History() {
   const [data, setData] = useState<Point[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [host, setHost] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    api
+      .getDevices()
+      .then((ds) => {
+        setDevices(ds)
+        if (ds.length && !host) setHost(ds[0].host_id)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     let ignore = false
     setLoading(true)
     setError(null)
     api
-      .getHistory(hours)
+      .getHistory(hours, host)
       .then((rows) => {
         if (ignore) return
         const fmt = (iso: string) => {
@@ -50,7 +64,7 @@ export default function History() {
     return () => {
       ignore = true
     }
-  }, [hours, t])
+  }, [hours, host, t])
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
@@ -58,7 +72,20 @@ export default function History() {
         <h1 className="text-xl font-bold tracking-tight text-text-primary">
           {t('history')}
         </h1>
-        <div className="flex rounded-xl border border-line/70 bg-surface p-0.5">
+        {devices.length > 1 && (
+          <select
+            value={host ?? ''}
+            onChange={(e) => setHost(e.target.value)}
+            className="rounded-xl border border-line/70 bg-surface px-3 py-1.5 text-sm text-text-primary outline-none focus:border-primary"
+          >
+            {devices.map((d) => (
+              <option key={d.host_id} value={d.host_id}>
+                {deviceName(d)}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="ms-auto flex rounded-xl border border-line/70 bg-surface p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.hours}

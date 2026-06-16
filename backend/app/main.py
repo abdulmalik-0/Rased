@@ -30,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    insecure = settings.insecure_secrets
+    if insecure:
+        raise RuntimeError(
+            f"Refusing to start: {', '.join(insecure)} still use the shipped default. "
+            "Set strong random values in .env (scripts/install.sh generates them)."
+        )
     if settings.is_central:
         await db.init_db()
     task = asyncio.create_task(collector_loop())

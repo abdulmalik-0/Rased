@@ -42,6 +42,9 @@ async def save_settings(
         config.model_name,
         encrypt(config.api_key) if config.api_key else "",
     )
+    await db.insert_audit(
+        claims.get("email", ""), "settings.save", config.provider_type, config.model_name
+    )
     return {"status": "ok"}
 
 
@@ -53,7 +56,7 @@ async def get_users(_: dict = Depends(require_admin)) -> list[dict]:
 
 @router.patch("/users/{uid}")
 async def update_user(
-    uid: str, body: UserUpdate, _: dict = Depends(require_admin)
+    uid: str, body: UserUpdate, admin: dict = Depends(require_admin)
 ) -> dict:
     if body.role is not None:
         if body.role not in ("admin", "viewer"):
@@ -61,6 +64,10 @@ async def update_user(
         await db.set_user_role(uid, body.role)
     if body.approved is not None:
         await db.set_user_approved(uid, body.approved)
+    await db.insert_audit(
+        admin.get("email", ""), "user.update", uid,
+        f"role={body.role} approved={body.approved}",
+    )
     return {"status": "ok"}
 
 
@@ -72,7 +79,7 @@ async def get_devices(_: dict = Depends(require_user)) -> list[dict]:
 
 @router.patch("/devices/{host_id}")
 async def update_device(
-    host_id: str, body: DeviceOverride, _: dict = Depends(require_admin)
+    host_id: str, body: DeviceOverride, admin: dict = Depends(require_admin)
 ) -> dict:
     await db.set_device_overrides(
         host_id,
@@ -80,6 +87,7 @@ async def update_device(
         nut_host=body.nut_host,
         nut_ups_name=body.nut_ups_name,
     )
+    await db.insert_audit(admin.get("email", ""), "device.update", host_id, "")
     return {"status": "ok"}
 
 
@@ -105,10 +113,34 @@ async def remove_link(
     return {"status": "ok"}
 
 
-# ---------- History ----------
+# ---------- History & alerts ----------
 @router.get("/history")
-async def get_history(hours: int = 24, _: dict = Depends(require_user)) -> list[dict]:
-    return await db.bucketed_history(max(1, min(hours, 8760)), 200)
+async def get_history(
+    hours: int = 24, host_id: str | None = None, _: dict = Depends(require_user)
+) -> list[dict]:
+    return await db.bucketed_history(max(1, min(hours, 8760)), 200, host_id)
+
+
+@router.get("/history/container/{name}")
+async def get_container_history(
+    name: str,
+    hours: int = 24,
+    host_id: str = "default",
+    _: dict = Depends(require_user),
+) -> list[dict]:
+    return await db.container_history(max(1, min(hours, 8760)), host_id, name)
+
+
+@router.get("/alerts")
+async def get_alerts(
+    host_id: str | None = None, limit: int = 100, _: dict = Depends(require_user)
+) -> list[dict]:
+    return await db.list_alerts(host_id, max(1, min(limit, 500)))
+
+
+@router.get("/audit")
+async def get_audit(limit: int = 200, _: dict = Depends(require_admin)) -> list[dict]:
+    return await db.list_audit(max(1, min(limit, 1000)))
 
 
 # ---------- AI chats ----------
