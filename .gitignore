@@ -4,6 +4,9 @@
 *.db-shm
 data/
 
+# Deploy packages (built on demand, never committed)
+*.tar.gz
+
 # Dependencies
 __pycache__/
 *.py[cod]
