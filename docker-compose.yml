@@ -37,6 +37,8 @@ services:
       NUT_UPS_NAME: ${NUT_UPS_NAME:-ups}
       # Alerting
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-600}
       CPU_ALERT_PERCENT: ${CPU_ALERT_PERCENT:-90}
       MEM_ALERT_PERCENT: ${MEM_ALERT_PERCENT:-90}
@@ -58,6 +60,8 @@ services:
       DIGEST_HOUR_UTC: ${DIGEST_HOUR_UTC:-8}
       # AI-assisted container install (admin reviews the plan first). false to disable.
       ALLOW_CONTAINER_DEPLOY: ${ALLOW_CONTAINER_DEPLOY:-true}
+      # Monthly AI token cap per user (0 = unlimited).
+      AI_MONTHLY_TOKEN_BUDGET: ${AI_MONTHLY_TOKEN_BUDGET:-0}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
