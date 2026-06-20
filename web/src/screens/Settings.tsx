@@ -166,7 +166,11 @@ function AlertingConfig() {
   async function save() {
     setSaving(true)
     try {
-      await api.setAdminConfig(cfg)
+      // empty string -> null so numeric overrides are cleared (not "" → NaN)
+      const payload = Object.fromEntries(
+        Object.entries(cfg).map(([k, v]) => [k, v.trim() === '' ? null : v]),
+      )
+      await api.setAdminConfig(payload)
       toast(t('settingsSaved'))
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Error')
@@ -226,6 +230,25 @@ function AlertingConfig() {
             <Input label={t('cooldownSecs')} value={cfg.alert_cooldown_seconds ?? ''} onChange={set('alert_cooldown_seconds')} type="number" />
             <Input label={t('aiBudget')} value={cfg.ai_monthly_token_budget ?? ''} onChange={set('ai_monthly_token_budget')} type="number" />
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line/60 bg-bg/50 p-3">
+            <input
+              type="checkbox"
+              checked={(cfg.anomaly_detection_enabled ?? 'true') !== 'false'}
+              onChange={(e) =>
+                set('anomaly_detection_enabled')(e.target.checked ? 'true' : 'false')
+              }
+              className="mt-0.5 h-4 w-4 accent-primary"
+            />
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                {t('anomalyDetection')}
+              </span>
+              <span className="block text-xs text-text-secondary">
+                {t('anomalyHint')}
+              </span>
+            </span>
+          </label>
 
           <button
             onClick={save}

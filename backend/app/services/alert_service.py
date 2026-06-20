@@ -81,10 +81,11 @@ class AlertService:
                 continue
             base = self._baselines.get(f"{payload.host_id}:{c.id}")
             if (
-                c.status == "running"
+                app_config.anomaly_enabled()
+                and c.status == "running"
                 and base is not None
                 and base > 1.0
-                and c.cpu_percent >= _ANOMALY_FLOOR_PERCENT
+                and c.cpu_percent >= app_config.anomaly_floor()
                 and c.cpu_percent >= _ANOMALY_FACTOR * base
             ):
                 alerts.append(Alert(level="warning", kind="anomaly", target=c.name,

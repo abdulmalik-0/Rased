@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     disk_alert_percent: float = 85.0
     battery_alert_percent: float = 30.0
     proactive_triage_enabled: bool = True
+    # Anomaly = a container's CPU >= 3x its baseline (and >= floor). Noisy for
+    # bursty apps, so it's toggleable (also from the UI).
+    anomaly_detection_enabled: bool = True
+    anomaly_floor_percent: float = 25.0
 
     # --- Uptime / SSL checks: "Name|https://url, Name2|https://url2" ---
     uptime_checks: str = ""

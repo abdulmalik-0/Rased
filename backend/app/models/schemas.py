@@ -252,3 +252,5 @@ class AppConfigUpdate(BaseModel):
     disk_alert_percent: float | None = None
     battery_alert_percent: float | None = None
     ai_monthly_token_budget: int | None = None
+    anomaly_detection_enabled: bool | None = None
+    anomaly_floor_percent: float | None = None

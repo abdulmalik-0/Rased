@@ -41,6 +41,13 @@ def _i(key: str, default: int) -> int:
         return default
 
 
+def _b(key: str, default: bool) -> bool:
+    v = _cache.get(key)
+    if v is None or v == "":
+        return default
+    return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
 # Typed accessors (DB override → env default)
 def webhook_url() -> str:
     return _cache.get("alert_webhook_url") or settings.alert_webhook_url
@@ -78,6 +85,14 @@ def ai_budget() -> int:
     return _i("ai_monthly_token_budget", settings.ai_monthly_token_budget)
 
 
+def anomaly_enabled() -> bool:
+    return _b("anomaly_detection_enabled", settings.anomaly_detection_enabled)
+
+
+def anomaly_floor() -> float:
+    return _f("anomaly_floor_percent", settings.anomaly_floor_percent)
+
+
 # Effective values for the admin UI (what's actually in force right now).
 def effective() -> dict:
     return {
@@ -90,4 +105,6 @@ def effective() -> dict:
         "disk_alert_percent": disk_default(),
         "battery_alert_percent": battery_default(),
         "ai_monthly_token_budget": ai_budget(),
+        "anomaly_detection_enabled": anomaly_enabled(),
+        "anomaly_floor_percent": anomaly_floor(),
     }

@@ -207,6 +207,8 @@ const en: Record<string, string> = {
   cooldownSecs: 'Cooldown (seconds)',
   aiBudget: 'AI monthly token budget (0 = unlimited)',
   globalThresholds: 'Global alert thresholds (%)',
+  anomalyDetection: 'Anomaly detection (CPU spike vs baseline)',
+  anomalyHint: 'Alerts when a container’s CPU jumps far above its own baseline — separate from the % thresholds. Turn off if it’s too noisy.',
 }
 
 const ar: Record<string, string> = {
@@ -409,6 +411,8 @@ const ar: Record<string, string> = {
   cooldownSecs: 'التهدئة (ثوانٍ)',
   aiBudget: 'ميزانية توكنات الذكاء شهرياً (0 = بلا حد)',
   globalThresholds: 'العتبات العامة للتنبيه (%)',
+  anomalyDetection: 'كشف الشذوذ (قفزة CPU عن الخطّ الأساسي)',
+  anomalyHint: 'ينبّه عندما يقفز CPU الحاوية فوق خطّها الأساسي بكثير — منفصل عن عتبات النسبة المئوية. أوقفه إن كان مزعجاً.',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }
