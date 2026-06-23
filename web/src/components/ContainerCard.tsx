@@ -145,7 +145,7 @@ export function ContainerCard({
         </div>
       </div>
 
-      <div className="mt-1 truncate text-xs text-text-secondary">{c.image}</div>
+      <div className="telemetry mt-1 truncate text-xs text-text-secondary">{c.image}</div>
 
       {(c.ports.length > 0 || customLink?.url || isAdmin) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -261,8 +261,9 @@ function Chip(props: {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-lg bg-elevated px-2 py-1 text-xs text-text-primary">
-      {label}: {value}
+    <span className="rounded-md bg-elevated px-2 py-1 text-xs text-text-secondary">
+      {label}:{' '}
+      <span className="telemetry font-medium text-text-primary">{value}</span>
     </span>
   )
 }

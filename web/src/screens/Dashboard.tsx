@@ -96,18 +96,24 @@ export default function Dashboard() {
     <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-primary">
+          <div className="panel-label mb-1">{active.host_id}</div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
             {t('overview')}
           </h1>
           <p className="text-sm text-text-secondary">{deviceName(active)}</p>
         </div>
         <div className="ms-auto flex flex-wrap items-center gap-2">
           <span
-            className={`chip ${online ? 'bg-accent/12 text-accent' : 'bg-danger/12 text-danger'}`}
+            className={`chip uppercase ${online ? 'bg-accent/12 text-accent' : 'bg-danger/12 text-danger'}`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-accent' : 'bg-danger'}`}
-            />
+            <span className="relative grid h-1.5 w-1.5 place-items-center">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-accent' : 'bg-danger'}`}
+              />
+              {online && (
+                <span className="absolute h-1.5 w-1.5 rounded-full bg-accent animate-ping2" />
+              )}
+            </span>
             {online ? t('agentOnline') : t('agentOffline')}
           </span>
           <DeviceSelector
@@ -152,17 +158,22 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {payload.containers.map((c) => (
-                <ContainerCard
+              {payload.containers.map((c, i) => (
+                <div
                   key={c.id}
-                  container={c}
-                  apiUrl={apiUrl}
-                  hostId={active.host_id}
-                  isAdmin={admin}
-                  customLink={links[c.name]}
-                  onAction={(a) => handleAction(c.id, a)}
-                  reloadLinks={loadLinks}
-                />
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${Math.min(i, 10) * 45}ms` }}
+                >
+                  <ContainerCard
+                    container={c}
+                    apiUrl={apiUrl}
+                    hostId={active.host_id}
+                    isAdmin={admin}
+                    customLink={links[c.name]}
+                    onAction={(a) => handleAction(c.id, a)}
+                    reloadLinks={loadLinks}
+                  />
+                </div>
               ))}
             </div>
           )}

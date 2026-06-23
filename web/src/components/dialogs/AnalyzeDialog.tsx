@@ -98,7 +98,7 @@ export function AnalyzeDialog({
           <p className="mb-5 text-sm text-text-secondary">{t('analyzeIntro')}</p>
           <button
             onClick={run}
-            className="mx-auto flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-medium text-white hover:opacity-90"
+            className="mx-auto flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-medium text-on-primary hover:opacity-90"
           >
             <Play size={16} /> {t('startAnalysis')}
           </button>
@@ -137,7 +137,7 @@ export function AnalyzeDialog({
             </button>
             <button
               onClick={continueChat}
-              className="ms-auto flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              className="ms-auto flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:opacity-90"
             >
               <MessageSquare size={15} /> {t('continueInChat')}
             </button>

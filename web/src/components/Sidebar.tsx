@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom'
 import {
-  Activity,
   Bell,
   HelpCircle,
   LayoutDashboard,
@@ -13,6 +12,7 @@ import {
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { isAdmin } from '../lib/types'
+import { RadarMark } from './RadarMark'
 
 interface Item {
   to: string
@@ -39,15 +39,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full w-60 flex-col border-e border-line/70 bg-surface/60 backdrop-blur-xl">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20">
-          <Activity className="text-white" size={20} />
-        </div>
-        <div>
-          <div className="text-[15px] font-bold leading-tight text-text-primary">
+      <div className="flex items-center gap-3 px-5 py-5">
+        <RadarMark size={40} />
+        <div className="min-w-0">
+          <div className="truncate text-[17px] font-bold leading-tight tracking-tight text-text-primary">
             {t('appTitle')}
           </div>
-          <div className="text-[11px] text-text-secondary">Server monitoring</div>
+          <div className="panel-label truncate">{t('brandTagline')}</div>
         </div>
       </div>
 
@@ -59,26 +57,33 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             end={item.to === '/'}
             onClick={onNavigate}
             className={({ isActive }) =>
-              `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+              `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 isActive
-                  ? 'bg-primary/12 text-primary shadow-sm'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-text-secondary hover:bg-elevated hover:text-text-primary'
               }`
             }
           >
-            <item.icon size={18} />
-            <span className="flex-1">{t(item.key)}</span>
-            {item.soon && (
-              <span className="rounded-md bg-elevated px-1.5 py-0.5 text-[9px] font-semibold uppercase text-text-secondary">
-                {t('soon')}
-              </span>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <span className="absolute inset-y-1.5 start-0 w-0.5 rounded-full bg-primary shadow-glow" />
+                )}
+                <item.icon size={18} className={isActive ? 'glow-teal' : ''} />
+                <span className="flex-1">{t(item.key)}</span>
+                {item.soon && (
+                  <span className="panel-label rounded bg-elevated px-1.5 py-0.5">
+                    {t('soon')}
+                  </span>
+                )}
+              </>
             )}
           </NavLink>
         ))}
       </nav>
 
-      <div className="border-t border-line/70 px-5 py-3 text-[11px] text-text-secondary">
-        v1.0 · Rased
+      <div className="panel-label border-t border-line/70 px-5 py-3">
+        v1.0 <span className="text-primary/70">//</span> RASED
       </div>
     </div>
   )

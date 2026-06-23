@@ -117,7 +117,7 @@ export default function Users() {
                 {!approved && (
                   <button
                     onClick={() => approve(u.id)}
-                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-on-primary transition hover:opacity-90"
                   >
                     {t('approve')}
                   </button>

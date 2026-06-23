@@ -92,7 +92,7 @@ export default function History() {
               onClick={() => setHours(r.hours)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 hours === r.hours
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-on-primary'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >

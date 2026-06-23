@@ -123,7 +123,7 @@ export function DeployDialog({
             onClick={() => switchMode(m)}
             className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${
               mode === m
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-on-primary'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -148,7 +148,7 @@ export function DeployDialog({
             <button
               onClick={installImage}
               disabled={busy}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-on-primary hover:opacity-90 disabled:opacity-50"
             >
               {busy ? <Loader2 className="animate-spin" size={16} /> : <Rocket size={16} />}
               {t('deployImageBtn')}
@@ -174,7 +174,7 @@ export function DeployDialog({
             <button
               onClick={doPlan}
               disabled={busy}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 text-sm font-medium text-on-primary hover:opacity-90 disabled:opacity-50"
             >
               {busy ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
               {t('deployPlanBtn')}
@@ -235,7 +235,7 @@ export function DeployDialog({
             <button
               onClick={installPlan}
               disabled={busy}
-              className="ms-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              className="ms-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:opacity-90 disabled:opacity-50"
             >
               {busy ? <Loader2 className="animate-spin" size={16} /> : <Rocket size={16} />}
               {t('deployInstall')} {t('deployOn')} {deviceLabel}

@@ -2,35 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Rased palette — refined, layered. Light defaults, dark overrides under .dark */
+/* Rased — "Phosphor Observatory" palette.
+   Light = daylight observatory · Dark (default) = radar scope at night.
+   --glow / --grid drive the signal glow and the background radar grid. */
 :root {
-  --bg: 247 248 251;
-  --bg-2: 255 255 255;
+  --bg: 237 241 244;
+  --bg-2: 247 249 251;
   --surface: 255 255 255;
-  --elevated: 244 246 250;
-  --border: 226 230 238;
-  --primary: 79 102 241;
-  --accent: 16 185 129;
-  --warning: 217 119 6;
-  --danger: 225 45 57;
-  --text-primary: 17 24 39;
-  --text-secondary: 100 110 130;
-  --glow: 79 102 241;
+  --elevated: 237 242 246;
+  --border: 213 223 230;
+  --primary: 13 148 136; /* teal-600 — signal */
+  --accent: 5 150 105; /* emerald-600 — nominal/live */
+  --warning: 202 138 4; /* amber-600 */
+  --danger: 220 38 38;
+  --text-primary: 15 27 34;
+  --text-secondary: 88 105 117;
+  --on-primary: 255 255 255; /* text on the (dark) signal colors */
+  --glow: 13 148 136;
+  --grid: 15 27 34;
 }
 
 .dark {
-  --bg: 8 10 16;
-  --bg-2: 11 14 22;
-  --surface: 18 22 32;
-  --elevated: 26 31 45;
-  --border: 36 43 60;
-  --primary: 99 118 247;
-  --accent: 26 200 142;
-  --warning: 245 165 36;
-  --danger: 244 73 84;
-  --text-primary: 233 238 246;
-  --text-secondary: 141 152 173;
-  --glow: 80 90 200;
+  --bg: 6 11 15;
+  --bg-2: 9 15 20;
+  --surface: 14 21 28;
+  --elevated: 21 31 41;
+  --border: 31 45 58;
+  --primary: 45 212 191; /* teal-400 — phosphor signal */
+  --accent: 52 211 153; /* emerald-400 — nominal/live */
+  --warning: 251 191 36; /* amber-400 */
+  --danger: 248 113 113;
+  --text-primary: 221 238 240;
+  --text-secondary: 123 146 158;
+  --on-primary: 6 11 15; /* dark ink on the bright phosphor signals */
+  --glow: 45 212 191;
+  --grid: 120 180 190;
 }
 
 html,
@@ -42,21 +48,33 @@ body,
 body {
   margin: 0;
   background-color: rgb(var(--bg));
+  /* Range-ring glow (top corner) + faint counter-glow + a fixed radar grid. */
   background-image:
-    radial-gradient(60rem 60rem at 15% -10%, rgb(var(--glow) / 0.10), transparent 60%),
-    radial-gradient(50rem 50rem at 110% 10%, rgb(var(--accent) / 0.06), transparent 55%);
+    radial-gradient(42rem 42rem at 100% -8%, rgb(var(--glow) / 0.12), transparent 60%),
+    radial-gradient(48rem 48rem at -10% 112%, rgb(var(--accent) / 0.07), transparent 55%),
+    linear-gradient(rgb(var(--grid) / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--grid) / 0.045) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    36px 36px,
+    36px 36px;
+  background-position:
+    center,
+    center,
+    center,
+    center;
   background-attachment: fixed;
   color: rgb(var(--text-primary));
-  font-family: 'Inter Variable', 'Cairo Variable', system-ui, -apple-system,
-    'Segoe UI', Roboto, sans-serif;
-  font-feature-settings: 'cv11', 'ss01';
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system,
+    'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 :lang(ar) body,
 [dir='rtl'] {
-  font-family: 'Cairo Variable', 'Inter Variable', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif;
 }
 
 ::-webkit-scrollbar {
@@ -78,22 +96,57 @@ body {
   scrollbar-color: rgb(var(--border)) transparent;
 }
 
-/* Reusable surfaces */
+/* Reusable surfaces — instrument-panel language */
 @layer components {
   .card {
-    @apply rounded-2xl border border-line/70 bg-surface/80 backdrop-blur-sm
+    @apply rounded-xl border border-line/70 bg-surface/70 backdrop-blur-md
       shadow-card transition duration-200;
   }
   .card-hover {
-    @apply hover:border-line hover:shadow-cardHover hover:-translate-y-0.5;
+    @apply hover:border-primary/35 hover:shadow-cardHover hover:-translate-y-0.5;
   }
   .btn-ghost {
-    @apply rounded-xl p-2 text-text-secondary transition hover:bg-elevated
+    @apply rounded-lg p-2 text-text-secondary transition hover:bg-elevated
       hover:text-text-primary;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px]
-      font-medium transition;
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[11px]
+      font-medium tracking-wide transition;
+  }
+  /* Micro eyebrow label — reads like an instrument legend. */
+  .panel-label {
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.2em]
+      text-text-secondary;
+  }
+}
+
+@layer utilities {
+  /* Telemetry readouts: monospaced, tabular figures that don't jitter. */
+  .telemetry {
+    font-family:
+      'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  /* Soft phosphor glow behind live gauges / signals. */
+  .glow-teal {
+    filter: drop-shadow(0 0 7px rgb(var(--primary) / 0.55));
+  }
+  .glow-amber {
+    filter: drop-shadow(0 0 7px rgb(250 204 21 / 0.5));
+  }
+  .glow-red {
+    filter: drop-shadow(0 0 7px rgb(248 113 113 / 0.5));
+  }
+  /* Faint CRT scanlines — opt-in atmosphere for hero surfaces. */
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgb(var(--grid) / 0.05) 0,
+      rgb(var(--grid) / 0.05) 1px,
+      transparent 1px,
+      transparent 3px
+    );
   }
 }
 
@@ -146,7 +199,7 @@ body {
   text-decoration: underline;
 }
 .md code {
-  font-family: ui-monospace, monospace;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 0.82em;
   background: rgb(var(--elevated));
   color: rgb(var(--accent));

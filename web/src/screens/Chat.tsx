@@ -164,7 +164,7 @@ export default function Chat() {
         <div className="p-3">
           <button
             onClick={newChat}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2 text-sm font-medium text-white hover:opacity-90"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2 text-sm font-medium text-on-primary hover:opacity-90"
           >
             <Plus size={16} /> {t('newChat')}
           </button>
@@ -264,7 +264,7 @@ export default function Chat() {
           <button
             onClick={send}
             disabled={loading}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-white hover:opacity-90 disabled:opacity-50"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-on-primary hover:opacity-90 disabled:opacity-50"
           >
             <Send size={18} />
           </button>

@@ -3,6 +3,8 @@ import type { Lang } from './types'
 
 const en: Record<string, string> = {
   appTitle: 'Rased',
+  brandTagline: 'Server observatory',
+  live: 'Live',
   agentOnline: 'Online',
   agentOffline: 'Offline',
   // auth
@@ -213,6 +215,8 @@ const en: Record<string, string> = {
 
 const ar: Record<string, string> = {
   appTitle: 'راصد',
+  brandTagline: 'مرصد الخوادم',
+  live: 'مباشر',
   agentOnline: 'متصل',
   agentOffline: 'غير متصل',
   signIn: 'تسجيل الدخول',

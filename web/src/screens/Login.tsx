@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Activity, Languages } from 'lucide-react'
+import { Languages } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
+import { RadarMark } from '../components/RadarMark'
 
 export default function Login() {
   const { login, register } = useAuth()
@@ -38,16 +39,14 @@ export default function Login() {
     <div className="grid min-h-full place-items-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-xl shadow-primary/25">
-            <Activity className="text-white" size={28} />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+          <RadarMark size={72} className="mb-4" />
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary">
             {t('appTitle')}
           </h1>
-          <p className="text-sm text-text-secondary">Server monitoring</p>
+          <p className="panel-label mt-1.5">{t('brandTagline')}</p>
         </div>
 
-        <div className="card animate-fade-in p-7">
+        <div className="card scanlines animate-fade-in p-7">
           <div className="mb-5 flex items-center justify-between">
             <span className="text-base font-semibold text-text-primary">
               {mode === 'login' ? t('signIn') : t('register')}
@@ -85,7 +84,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-xl bg-primary py-2.5 font-semibold text-white shadow-lg shadow-primary/20 transition hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className="w-full rounded-xl bg-primary py-2.5 font-semibold text-on-primary shadow-lg shadow-primary/20 transition hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? '…' : mode === 'login' ? t('signIn') : t('register')}
             </button>

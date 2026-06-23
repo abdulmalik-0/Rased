@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { Activity, ChevronDown, LogOut, Menu, Moon, Sun } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Moon, Sun } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
+import { RadarMark } from './RadarMark'
 import { Sidebar } from './Sidebar'
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -44,14 +45,14 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
       <button className="btn-ghost md:hidden" onClick={onMenu} aria-label="Menu">
         <Menu size={20} />
       </button>
-      <div className="flex items-center gap-2 font-bold text-text-primary md:hidden">
-        <Activity className="text-primary" size={18} />
+      <div className="flex items-center gap-2 font-bold tracking-tight text-text-primary md:hidden">
+        <RadarMark size={26} />
         {t('appTitle')}
       </div>
 
       <div className="ms-auto flex items-center gap-1">
         <button
-          className="btn-ghost min-w-9 text-xs font-bold"
+          className="btn-ghost min-w-9 font-mono text-xs font-bold"
           title={t('language')}
           onClick={toggleLang}
         >

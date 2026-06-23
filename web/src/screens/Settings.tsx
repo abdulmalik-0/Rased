@@ -120,7 +120,7 @@ export default function Settings() {
             <button
               onClick={onSave}
               disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 font-semibold text-white shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 font-semibold text-on-primary shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="animate-spin" size={18} />
@@ -253,7 +253,7 @@ function AlertingConfig() {
           <button
             onClick={save}
             disabled={saving}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50"
           >
             {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             {t('saveSettings')}

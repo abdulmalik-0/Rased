@@ -23,6 +23,7 @@ export default {
         danger: 'rgb(var(--danger) / <alpha-value>)',
         'text-primary': 'rgb(var(--text-primary) / <alpha-value>)',
         'text-secondary': 'rgb(var(--text-secondary) / <alpha-value>)',
+        'on-primary': 'rgb(var(--on-primary) / <alpha-value>)',
         // Tremor tokens
         tremor: {
           brand: {
@@ -77,22 +78,44 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Inter Variable',
-          'Cairo Variable',
+          'IBM Plex Sans',
+          'IBM Plex Sans Arabic',
           'system-ui',
           'sans-serif',
         ],
+        mono: [
+          'IBM Plex Mono',
+          'IBM Plex Sans Arabic',
+          'ui-monospace',
+          'monospace',
+        ],
+        arabic: ['IBM Plex Sans Arabic', 'IBM Plex Sans', 'sans-serif'],
       },
       keyframes: {
         'fade-in': {
-          from: { opacity: '0', transform: 'translateY(4px)' },
+          from: { opacity: '0', transform: 'translateY(6px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        // Radar sweep around the brand mark — "always watching".
+        sweep: {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        // Expanding range ring (a live signal ping).
+        ping2: {
+          '0%': { transform: 'scale(0.9)', opacity: '0.55' },
+          '80%, 100%': { transform: 'scale(2.6)', opacity: '0' },
+        },
       },
-      animation: { 'fade-in': 'fade-in 0.25s ease-out' },
+      animation: {
+        'fade-in': 'fade-in 0.35s ease-out both',
+        sweep: 'sweep 4s linear infinite',
+        ping2: 'ping2 2.4s cubic-bezier(0,0,0.2,1) infinite',
+      },
       boxShadow: {
-        card: '0 1px 2px 0 rgb(0 0 0 / 0.06), 0 8px 24px -12px rgb(0 0 0 / 0.30)',
-        cardHover: '0 1px 2px 0 rgb(0 0 0 / 0.08), 0 16px 40px -16px rgb(0 0 0 / 0.45)',
+        card: '0 1px 2px 0 rgb(0 0 0 / 0.06), 0 10px 30px -16px rgb(0 0 0 / 0.45)',
+        cardHover: '0 1px 2px 0 rgb(0 0 0 / 0.08), 0 18px 44px -18px rgb(0 0 0 / 0.55)',
+        glow: '0 0 0 1px rgb(var(--primary) / 0.30), 0 0 28px -6px rgb(var(--glow) / 0.55)',
         'tremor-input': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
         'tremor-card': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
         'tremor-dropdown': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
@@ -114,7 +137,7 @@ export default {
     },
   },
   safelist: [
-    { pattern: /^(bg|text|border|ring|stroke|fill)-(blue|emerald|amber|red|gray)-(400|500|600)$/ },
+    { pattern: /^(bg|text|border|ring|stroke|fill)-(teal|cyan|emerald|amber|red|gray)-(400|500|600)$/ },
   ],
   plugins: [headlessui],
 }

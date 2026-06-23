@@ -39,7 +39,7 @@ export function PrimaryButton(props: {
     <button
       onClick={props.onClick}
       disabled={props.disabled}
-      className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+      className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50"
     >
       {props.children}
     </button>
