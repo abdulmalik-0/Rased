@@ -312,6 +312,28 @@ export const api = {
     )
   },
 
+  // ---- weekly AI digest (central) ----
+  async getDigest(opts: {
+    aiConfig: AIProviderConfig
+    hostId?: string
+    days?: number
+    lang?: string
+  }): Promise<{ digest: string; model_used: string; range_days: number }> {
+    const r = await handle(
+      await fetch(`${backendUrl}/digest`, {
+        method: 'POST',
+        headers: headers(true),
+        body: JSON.stringify({
+          ai_config: opts.aiConfig,
+          host_id: opts.hostId ?? 'default',
+          days: opts.days ?? 7,
+          lang: opts.lang ?? 'en',
+        }),
+      }),
+    )
+    return r.json()
+  },
+
   // ---- per-device AI / actions ----
   async analyzeLogs(opts: {
     containerId: string

@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -14,12 +15,14 @@ from app.models.schemas import (
     AIProviderConfig,
     AppConfigUpdate,
     ChatUpsert,
+    DigestRequest,
+    DigestResponse,
     DeviceOverride,
     LinkUpsert,
     ThresholdUpdate,
     UserUpdate,
 )
-from app.services import app_config
+from app.services import ai_router, app_config
 from app.services.auth import require_admin, require_user
 from app.services.crypto import decrypt, encrypt
 
@@ -138,6 +141,73 @@ async def get_container_history(
     _: dict = Depends(require_user),
 ) -> list[dict]:
     return await db.container_history(max(1, min(hours, 8760)), host_id, name)
+
+
+# ---------- Weekly AI digest (on-demand) ----------
+def _metric_line(name: str, hist: list[dict], key: str) -> str:
+    vals = [float(r[key]) for r in hist if r.get(key) is not None]
+    if not vals:
+        return f"- {name}: no data"
+    return (
+        f"- {name}: now {vals[-1]:.0f}%, avg {sum(vals) / len(vals):.0f}%, "
+        f"peak {max(vals):.0f}%, change {vals[-1] - vals[0]:+.0f} pts over the window"
+    )
+
+
+def _build_digest_summary(
+    host_id: str, days: int, hist: list[dict], alerts: list[dict]
+) -> str:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    by_level: dict[str, int] = {}
+    by_kind: dict[str, int] = {}
+    notable: list[str] = []
+    for a in alerts:
+        try:
+            ts = datetime.fromisoformat(str(a["ts"]).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts < cutoff:
+            continue
+        by_level[a["level"]] = by_level.get(a["level"], 0) + 1
+        by_kind[a["kind"]] = by_kind.get(a["kind"], 0) + 1
+        if a["level"] in ("critical", "warning") and len(notable) < 8:
+            notable.append(f"- [{a['level']}] {a['message']}")
+
+    running = hist[-1].get("containers_running") if hist else None
+    lines = [
+        f"Server: {host_id}",
+        f"Window: last {days} days ({len(hist)} history samples)",
+        _metric_line("Host CPU", hist, "host_cpu"),
+        _metric_line("Host memory", hist, "host_mem"),
+        _metric_line("Disk (busiest mount)", hist, "host_disk_max"),
+        f"- Containers running (latest): {running if running is not None else 'n/a'}",
+        f"Alerts in window: {sum(by_level.values())} total"
+        f" — by level {by_level or '{}'} — by kind {by_kind or '{}'}",
+    ]
+    if notable:
+        lines.append("Notable alerts:")
+        lines.extend(notable)
+    return "\n".join(lines)
+
+
+@router.post("/digest", response_model=DigestResponse)
+async def generate_digest(
+    req: DigestRequest, claims: dict = Depends(require_user)
+) -> DigestResponse:
+    if not req.ai_config.base_url or not req.ai_config.model_name:
+        raise HTTPException(400, "AI provider not configured")
+    days = max(1, min(31, req.days))
+    hist = await db.bucketed_history(days * 24, 200, req.host_id)
+    alerts = await db.list_alerts(req.host_id, limit=1000)
+    summary = _build_digest_summary(req.host_id, days, hist, alerts)
+    text = await ai_router.weekly_digest(
+        summary, req.ai_config, req.lang, claims["sub"]
+    )
+    return DigestResponse(
+        digest=text, model_used=req.ai_config.model_name, range_days=days
+    )
 
 
 @router.get("/alerts")

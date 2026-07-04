@@ -53,9 +53,7 @@ export function HostCard({ host, name }: { host: HostStats; name: string }) {
 
           {host.temperatures.length > 0 && (
             <div className="mt-5 border-t border-line/60 pt-4">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-text-secondary">
-                {t('temperatures')}
-              </div>
+              <div className="panel-label mb-3">{t('temperatures')}</div>
               <div className="flex flex-wrap gap-4">
                 {host.temperatures.map((tp) => (
                   <TempGauge
@@ -64,6 +62,28 @@ export function HostCard({ host, name }: { host: HostStats; name: string }) {
                     current={tp.current}
                     high={tp.high}
                   />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {host.top_processes && host.top_processes.length > 0 && (
+            <div className="mt-5 border-t border-line/60 pt-4">
+              <div className="panel-label mb-3">{t('topProcesses')}</div>
+              <div className="space-y-1">
+                {host.top_processes.map((p) => (
+                  <div key={p.pid} className="flex items-center gap-3 text-xs">
+                    <span className="telemetry w-12 shrink-0 text-text-secondary">{p.pid}</span>
+                    <span className="min-w-0 flex-1 truncate text-text-primary" title={p.name}>
+                      {p.name}
+                    </span>
+                    <span className="telemetry shrink-0 text-text-secondary">
+                      {p.memory_mb.toFixed(0)} MB
+                    </span>
+                    <span className="telemetry w-12 shrink-0 text-end font-medium text-primary">
+                      {p.cpu_percent.toFixed(0)}%
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>

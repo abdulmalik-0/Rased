@@ -4,6 +4,7 @@ import { Loader2, PlusSquare, RefreshCw, Rocket, Settings2 } from 'lucide-react'
 import { AlertsCard } from '../components/AlertsCard'
 import { ContainerCard } from '../components/ContainerCard'
 import { DeviceSelector } from '../components/DeviceSelector'
+import { DigestCard } from '../components/DigestCard'
 import { ForecastCard } from '../components/ForecastCard'
 import { HostCard } from '../components/HostCard'
 import { UpsCard } from '../components/UpsCard'
@@ -156,6 +157,7 @@ export default function Dashboard() {
           <HostCard host={payload.host} name={deviceName(active)} />
           <ForecastCard hostId={active.host_id} />
           <AlertsCard alerts={payload.alerts} />
+          <DigestCard hostId={active.host_id} />
           <UpsCard ups={payload.ups} />
 
           {payload.containers.length === 0 ? (

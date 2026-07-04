@@ -1,4 +1,5 @@
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import docker
@@ -28,6 +29,9 @@ def _is_unsafe_bind(host_path: str) -> bool:
 class DockerService:
     def __init__(self) -> None:
         self._client: docker.DockerClient | None = None
+        # Per-container cumulative I/O counters from the previous tick, so we can
+        # derive live rates: {cid: (rx, tx, blk_read, blk_write, monotonic_ts)}.
+        self._io_prev: dict[str, tuple[float, float, float, float, float]] = {}
 
     @property
     def client(self) -> docker.DockerClient:
@@ -177,6 +181,41 @@ class DockerService:
             pass
         return 0.0
 
+    @staticmethod
+    def _sum_io(stats: dict) -> tuple[float, float, float, float]:
+        """Cumulative (rx, tx, blk_read, blk_write) bytes from a stats sample.
+        Block I/O is empty on cgroup v2 hosts — network still works there."""
+        rx = tx = 0.0
+        for iface in (stats.get("networks") or {}).values():
+            rx += iface.get("rx_bytes", 0) or 0
+            tx += iface.get("tx_bytes", 0) or 0
+        read = write = 0.0
+        for e in (stats.get("blkio_stats") or {}).get("io_service_bytes_recursive") or []:
+            op = (e.get("op") or "").lower()
+            val = e.get("value", 0) or 0
+            if op == "read":
+                read += val
+            elif op == "write":
+                write += val
+        return rx, tx, read, write
+
+    def _io_rates(self, cid: str, stats: dict) -> tuple[float, float, float, float]:
+        rx, tx, read, write = self._sum_io(stats)
+        now = time.monotonic()
+        prev = self._io_prev.get(cid)
+        self._io_prev[cid] = (rx, tx, read, write, now)
+        if not prev:
+            return 0.0, 0.0, 0.0, 0.0  # first sample — no rate yet
+        dt = now - prev[4]
+        if dt <= 0:
+            return 0.0, 0.0, 0.0, 0.0
+
+        def rate(cur: float, old: float) -> float:
+            d = cur - old
+            return round(d / dt, 1) if d > 0 else 0.0  # counters only rise
+
+        return rate(rx, prev[0]), rate(tx, prev[1]), rate(read, prev[2]), rate(write, prev[3])
+
     def _calc_memory(self, stats: dict) -> tuple[float, float, float]:
         try:
             usage = stats["memory_stats"].get("usage", 0)
@@ -216,6 +255,7 @@ class DockerService:
         for container in containers:
             cpu_percent = 0.0
             mem_usage, mem_limit, mem_percent = 0.0, 0.0, 0.0
+            net_rx = net_tx = blk_r = blk_w = 0.0
             st = stats_by_id.get(container.id)
             if st is not None:
                 cpu_percent = round(self._calc_cpu_percent(st), 2)
@@ -223,6 +263,7 @@ class DockerService:
                 mem_usage = round(mem_usage, 2)
                 mem_limit = round(mem_limit, 2)
                 mem_percent = round(mem_percent, 2)
+                net_rx, net_tx, blk_r, blk_w = self._io_rates(container.id, st)
 
             tags = container.image.tags if container.image else []
             ports: list[str] = []
@@ -247,8 +288,18 @@ class DockerService:
                     memory_percent=mem_percent,
                     restart_count=int(container.attrs.get("RestartCount", 0) or 0),
                     ports=sorted(ports, key=lambda x: int(x) if x.isdigit() else 0),
+                    net_rx_bytes_ps=net_rx,
+                    net_tx_bytes_ps=net_tx,
+                    blk_read_bytes_ps=blk_r,
+                    blk_write_bytes_ps=blk_w,
                 )
             )
+
+        # Forget rate state for containers that no longer exist.
+        live_ids = {c.id for c in containers}
+        for cid in list(self._io_prev):
+            if cid not in live_ids:
+                self._io_prev.pop(cid, None)
         return result
 
 

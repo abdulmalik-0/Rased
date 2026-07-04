@@ -11,6 +11,7 @@ import {
 import { useI18n } from '../lib/i18n'
 import { useCopy } from '../lib/useCopy'
 import { useToast } from '../lib/toast'
+import { humanRate } from '../lib/format'
 import type { ContainerMetrics } from '../lib/types'
 import { AnalyzeDialog } from './dialogs/AnalyzeDialog'
 import { ContainerHistoryDialog } from './dialogs/ContainerHistoryDialog'
@@ -180,6 +181,18 @@ export function ContainerCard({
             value={`${c.memory_percent.toFixed(0)}% · ${c.memory_usage_mb.toFixed(0)}/${c.memory_limit_mb.toFixed(0)}MB`}
           />
           {c.restart_count > 0 && <Stat label={t('restarts')} value={`${c.restart_count}`} />}
+          {(c.net_rx_bytes_ps > 0 || c.net_tx_bytes_ps > 0) && (
+            <Stat
+              label={t('net')}
+              value={`↓ ${humanRate(c.net_rx_bytes_ps)} · ↑ ${humanRate(c.net_tx_bytes_ps)}`}
+            />
+          )}
+          {(c.blk_read_bytes_ps > 0 || c.blk_write_bytes_ps > 0) && (
+            <Stat
+              label={t('diskIo')}
+              value={`R ${humanRate(c.blk_read_bytes_ps)} · W ${humanRate(c.blk_write_bytes_ps)}`}
+            />
+          )}
         </div>
       )}
 

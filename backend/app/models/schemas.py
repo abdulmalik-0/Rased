@@ -12,6 +12,11 @@ class ContainerMetrics(BaseModel):
     memory_percent: float = 0.0
     restart_count: int = 0
     ports: list[str] = Field(default_factory=list)
+    # Live throughput (bytes/sec), computed as a delta between collector ticks.
+    net_rx_bytes_ps: float = 0.0
+    net_tx_bytes_ps: float = 0.0
+    blk_read_bytes_ps: float = 0.0
+    blk_write_bytes_ps: float = 0.0
 
 
 class DiskUsage(BaseModel):
@@ -27,6 +32,13 @@ class Temp(BaseModel):
     high: float | None = None
 
 
+class ProcInfo(BaseModel):
+    pid: int
+    name: str
+    cpu_percent: float = 0.0
+    memory_mb: float = 0.0
+
+
 class HostStats(BaseModel):
     available: bool = False
     cpu_percent: float = 0.0
@@ -36,6 +48,7 @@ class HostStats(BaseModel):
     memory_percent: float = 0.0
     disks: list[DiskUsage] = Field(default_factory=list)
     temperatures: list[Temp] = Field(default_factory=list)
+    top_processes: list[ProcInfo] = Field(default_factory=list)
     load_avg_1m: float | None = None
     uptime_seconds: float | None = None
     error: str | None = None
@@ -112,6 +125,19 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     model_used: str
+
+
+class DigestRequest(BaseModel):
+    ai_config: AIProviderConfig
+    host_id: str = "default"
+    days: int = 7
+    lang: str = "en"
+
+
+class DigestResponse(BaseModel):
+    digest: str
+    model_used: str
+    range_days: int
 
 
 class DeploySuggestRequest(BaseModel):

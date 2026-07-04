@@ -324,3 +324,29 @@ async def daily_digest(summary: str, ai_config: AIProviderConfig) -> str:
         temperature=0.4,
         kind="digest",
     )
+
+
+async def weekly_digest(
+    summary: str, ai_config: AIProviderConfig, lang: str = "en", user_id: str = ""
+) -> str:
+    """On-demand multi-day health summary from aggregated stats + alert counts."""
+    return await _chat(
+        [
+            {"role": "system", "content": DIGEST_SYSTEM_PROMPT + _lang_directive(lang)},
+            {
+                "role": "user",
+                "content": (
+                    "Write a concise health digest for this server from the aggregated "
+                    "stats and alert counts below. Use short markdown sections: a one-line "
+                    "overall status, notable trends (CPU / memory / disk), incidents, and "
+                    "1-3 concrete recommendations. Be specific with the numbers; do not "
+                    "invent data that isn't present.\n\n"
+                    f"```\n{summary}\n```"
+                ),
+            },
+        ],
+        ai_config,
+        temperature=0.4,
+        user_id=user_id,
+        kind="digest",
+    )

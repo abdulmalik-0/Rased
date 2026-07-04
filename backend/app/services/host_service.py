@@ -1,7 +1,8 @@
 import logging
 import os
+import time
 
-from app.models.schemas import DiskUsage, HostStats, Temp
+from app.models.schemas import DiskUsage, HostStats, ProcInfo, Temp
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,40 @@ class HostService:
     Degrades gracefully to an unavailable HostStats when psutil is missing
     (e.g. running outside a host with the package installed).
     """
+
+    def __init__(self) -> None:
+        # Per-pid cumulative CPU seconds from the previous tick, so we can derive
+        # each process's CPU% without a blocking sampling interval.
+        self._proc_cpu: dict[int, tuple[float, float]] = {}
+
+    def top_processes(self, limit: int = 5) -> list[ProcInfo]:
+        """Busiest processes by CPU% (top-style, relative to one core), with RSS.
+        CPU% is 0 on the very first tick (no baseline yet)."""
+        now = time.monotonic()
+        rows: list[tuple[float, float, int, str]] = []
+        cur: dict[int, tuple[float, float]] = {}
+        for p in psutil.process_iter(["pid", "name", "memory_info", "cpu_times"]):
+            try:
+                info = p.info
+                pid = info["pid"]
+                ct = info["cpu_times"]
+                cpu_sec = (ct.user + ct.system) if ct else 0.0
+                cur[pid] = (cpu_sec, now)
+                cpu_pct = 0.0
+                prev = self._proc_cpu.get(pid)
+                if prev and now > prev[1]:
+                    cpu_pct = max(0.0, (cpu_sec - prev[0]) / (now - prev[1]) * 100.0)
+                mi = info["memory_info"]
+                mem_mb = (mi.rss / (1024 * 1024)) if mi else 0.0
+                rows.append((cpu_pct, mem_mb, pid, (info["name"] or "?")[:40]))
+            except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError):
+                continue
+        self._proc_cpu = cur  # replace wholesale — also prunes dead pids
+        rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
+        return [
+            ProcInfo(pid=pid, name=name, cpu_percent=round(c, 1), memory_mb=round(m, 1))
+            for (c, m, pid, name) in rows[:limit]
+        ]
 
     def get_stats(self) -> HostStats:
         if not _PSUTIL_AVAILABLE:
@@ -72,11 +107,15 @@ class HostService:
 
             uptime = None
             try:
-                import time
-
                 uptime = round(time.time() - psutil.boot_time(), 0)
             except Exception:  # pragma: no cover
                 pass
+
+            try:
+                top = self.top_processes(5)
+            except Exception as exc:  # noqa: BLE001 - never break stats over this
+                logger.debug("top_processes failed: %s", exc)
+                top = []
 
             temps: list[Temp] = []
             try:
@@ -105,6 +144,7 @@ class HostService:
                 memory_percent=round(vm.percent, 1),
                 disks=disks,
                 temperatures=temps,
+                top_processes=top,
                 load_avg_1m=load_1m,
                 uptime_seconds=uptime,
             )

@@ -11,6 +11,10 @@ export interface ContainerMetrics {
   memory_percent: number
   restart_count: number
   ports: string[]
+  net_rx_bytes_ps: number
+  net_tx_bytes_ps: number
+  blk_read_bytes_ps: number
+  blk_write_bytes_ps: number
 }
 
 export interface DiskUsage {
@@ -26,6 +30,13 @@ export interface Temp {
   high: number | null
 }
 
+export interface ProcInfo {
+  pid: number
+  name: string
+  cpu_percent: number
+  memory_mb: number
+}
+
 export interface HostStats {
   available: boolean
   cpu_percent: number
@@ -35,6 +46,7 @@ export interface HostStats {
   memory_percent: number
   disks: DiskUsage[]
   temperatures: Temp[]
+  top_processes: ProcInfo[]
   load_avg_1m: number | null
   uptime_seconds: number | null
   error: string | null

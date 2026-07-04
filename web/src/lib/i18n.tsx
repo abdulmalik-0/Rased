@@ -233,6 +233,10 @@ const en: Record<string, string> = {
   stableOrFalling: 'Stable / falling',
   needMoreData: 'Not enough history yet',
   projFrom: 'projected from {n} samples · 7-day trend',
+  // expanded metrics
+  net: 'Net',
+  diskIo: 'Disk I/O',
+  topProcesses: 'Top processes',
   // live logs
   liveTail: 'Live',
   // digest
@@ -470,6 +474,10 @@ const ar: Record<string, string> = {
   stableOrFalling: 'مستقرّ / منخفض',
   needMoreData: 'السجلّ غير كافٍ بعد',
   projFrom: 'مُقدَّر من {n} عيّنة · اتجاه 7 أيام',
+  // expanded metrics
+  net: 'الشبكة',
+  diskIo: 'قرص I/O',
+  topProcesses: 'أعلى العمليات',
   // live logs
   liveTail: 'مباشر',
   // digest
