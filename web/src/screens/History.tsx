@@ -54,8 +54,8 @@ export default function History() {
           rows.map((r) => ({
             time: fmt(String(r.ts ?? r.time ?? '')),
             [t('cpuPct')]: round(r.host_cpu),
-            [t('memPct')]: round(r.host_memory),
-            [t('diskPct')]: round(r.host_disk),
+            [t('memPct')]: round(r.host_mem),
+            [t('diskPct')]: round(r.host_disk_max),
           })),
         )
       })

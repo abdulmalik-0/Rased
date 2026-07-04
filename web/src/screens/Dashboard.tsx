@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, PlusSquare, RefreshCw, Rocket, Settings2 } from 'lucide-react'
 import { AlertsCard } from '../components/AlertsCard'
 import { ContainerCard } from '../components/ContainerCard'
 import { DeviceSelector } from '../components/DeviceSelector'
+import { ForecastCard } from '../components/ForecastCard'
 import { HostCard } from '../components/HostCard'
 import { UpsCard } from '../components/UpsCard'
 import { AddDeviceDialog } from '../components/dialogs/AddDeviceDialog'
@@ -33,7 +35,10 @@ export default function Dashboard() {
   const { metrics, refresh } = useMetrics(session?.token ?? null)
 
   const [table, setTable] = useState<Device[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
+  const [sp, setSp] = useSearchParams()
+  const selected = sp.get('host')
+  const setSelected = (id: string | null) =>
+    setSp(id ? { host: id } : {}, { replace: true })
   const [links, setLinks] = useState<Record<string, { url: string; label: string }>>({})
   const [addOpen, setAddOpen] = useState(false)
   const [cfgOpen, setCfgOpen] = useState(false)
@@ -149,6 +154,7 @@ export default function Dashboard() {
       ) : (
         <div className="animate-fade-in space-y-5">
           <HostCard host={payload.host} name={deviceName(active)} />
+          <ForecastCard hostId={active.host_id} />
           <AlertsCard alerts={payload.alerts} />
           <UpsCard ups={payload.ups} />
 

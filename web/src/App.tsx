@@ -8,6 +8,7 @@ import Dashboard from './screens/Dashboard'
 import Help from './screens/Help'
 import History from './screens/History'
 import Login from './screens/Login'
+import Radar from './screens/Radar'
 import Settings from './screens/Settings'
 import Users from './screens/Users'
 
@@ -19,6 +20,7 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/radar" element={<Radar />} />
           <Route path="/history" element={<History />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/chat" element={<Chat />} />

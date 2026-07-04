@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LineChart,
   MessageSquare,
+  Radar,
   Settings,
   Users,
   type LucideIcon,
@@ -24,6 +25,7 @@ interface Item {
 
 const ITEMS: Item[] = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' },
+  { to: '/radar', icon: Radar, key: 'radar' },
   { to: '/alerts', icon: Bell, key: 'alertsScreen' },
   { to: '/history', icon: LineChart, key: 'history' },
   { to: '/chat', icon: MessageSquare, key: 'askAi' },

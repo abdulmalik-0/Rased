@@ -1,0 +1,18 @@
+{
+  "name": "Rased — راصد",
+  "short_name": "Rased",
+  "description": "Server observatory: live Docker & host monitoring with AI.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060b0f",
+  "theme_color": "#060b0f",
+  "lang": "ar",
+  "dir": "auto",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

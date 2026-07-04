@@ -1,13 +1,28 @@
-import { useState, type ReactNode } from 'react'
-import { ChevronDown, LogOut, Menu, Moon, Sun } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ChevronDown, LogOut, Menu, Moon, Search, Sun } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
+import { CommandPalette } from './CommandPalette'
 import { RadarMark } from './RadarMark'
 import { Sidebar } from './Sidebar'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false)
+  const [cmdk, setCmdk] = useState(false)
+
+  // Global ⌘K / Ctrl+K to open the command palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCmdk((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className="flex h-full">
       <aside className="hidden shrink-0 md:block">
@@ -27,14 +42,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onMenu={() => setDrawer(true)} />
+        <TopBar onMenu={() => setDrawer(true)} onSearch={() => setCmdk(true)} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+
+      <CommandPalette open={cmdk} onClose={() => setCmdk(false)} />
     </div>
   )
 }
 
-function TopBar({ onMenu }: { onMenu: () => void }) {
+function TopBar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void }) {
   const { t, toggle: toggleLang, lang } = useI18n()
   const { theme, toggle: toggleTheme } = useTheme()
   const { session, logout } = useAuth()
@@ -50,7 +67,21 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         {t('appTitle')}
       </div>
 
-      <div className="ms-auto flex items-center gap-1">
+      <button
+        onClick={onSearch}
+        className="ms-auto flex items-center gap-2 rounded-lg border border-line/70 bg-surface px-2.5 py-1.5 text-text-secondary transition hover:border-primary/35 hover:text-text-primary sm:min-w-[220px]"
+        title={t('cmdkPlaceholder')}
+      >
+        <Search size={15} />
+        <span className="hidden flex-1 truncate text-start text-xs sm:block">
+          {t('cmdkPlaceholder')}
+        </span>
+        <span className="panel-label hidden shrink-0 rounded border border-line/70 px-1.5 py-0.5 sm:inline">
+          ⌘K
+        </span>
+      </button>
+
+      <div className="flex items-center gap-1">
         <button
           className="btn-ghost min-w-9 font-mono text-xs font-bold"
           title={t('language')}

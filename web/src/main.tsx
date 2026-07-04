@@ -35,3 +35,11 @@ createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </StrictMode>,
 )
+
+// PWA: register the offline shell. Service workers only run in a secure context
+// (HTTPS or localhost), so this is a harmless no-op on plain-HTTP deployments.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}

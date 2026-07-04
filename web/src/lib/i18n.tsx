@@ -211,6 +211,37 @@ const en: Record<string, string> = {
   globalThresholds: 'Global alert thresholds (%)',
   anomalyDetection: 'Anomaly detection (CPU spike vs baseline)',
   anomalyHint: 'Alerts when a container’s CPU jumps far above its own baseline — separate from the % thresholds. Turn off if it’s too noisy.',
+  // radar
+  radar: 'Radar',
+  noSignal: 'No signal — waiting for the agent',
+  contacts: 'Contacts',
+  elevated: 'Elevated',
+  critical: 'Critical',
+  // command palette
+  cmdkPlaceholder: 'Jump to a screen, device or container…',
+  cmdkScreens: 'Screens',
+  cmdkDevices: 'Devices',
+  cmdkContainers: 'Containers',
+  cmdkEmpty: 'No matches',
+  cmdkHint: 'to search',
+  // forecast
+  forecast: 'Forecast',
+  diskForecast: 'Disk forecast',
+  memForecast: 'Memory forecast',
+  fillsInDays: 'Fills in ~{n} days',
+  fillsInHours: 'Fills in ~{n} h',
+  stableOrFalling: 'Stable / falling',
+  needMoreData: 'Not enough history yet',
+  projFrom: 'projected from {n} samples · 7-day trend',
+  // live logs
+  liveTail: 'Live',
+  // digest
+  digestTitle: 'Weekly AI digest',
+  digestGenerate: 'Generate digest',
+  digestGenerating: 'Analyzing the week…',
+  digestHint: 'A short AI summary of the last 7 days: alerts, restarts and resource trends.',
+  digestNoAi: 'Configure an AI provider first (Settings → AI).',
+  digestRange: 'Last 7 days',
 }
 
 const ar: Record<string, string> = {
@@ -417,6 +448,37 @@ const ar: Record<string, string> = {
   globalThresholds: 'العتبات العامة للتنبيه (%)',
   anomalyDetection: 'كشف الشذوذ (قفزة CPU عن الخطّ الأساسي)',
   anomalyHint: 'ينبّه عندما يقفز CPU الحاوية فوق خطّها الأساسي بكثير — منفصل عن عتبات النسبة المئوية. أوقفه إن كان مزعجاً.',
+  // radar
+  radar: 'الرادار',
+  noSignal: 'لا إشارة — بانتظار الوكيل',
+  contacts: 'الأهداف',
+  elevated: 'مرتفع',
+  critical: 'حرِج',
+  // command palette
+  cmdkPlaceholder: 'انتقل إلى شاشة أو جهاز أو حاوية…',
+  cmdkScreens: 'الشاشات',
+  cmdkDevices: 'الأجهزة',
+  cmdkContainers: 'الحاويات',
+  cmdkEmpty: 'لا نتائج',
+  cmdkHint: 'للبحث',
+  // forecast
+  forecast: 'التوقّع',
+  diskForecast: 'توقّع القرص',
+  memForecast: 'توقّع الذاكرة',
+  fillsInDays: 'يمتلئ خلال ~{n} يوم',
+  fillsInHours: 'يمتلئ خلال ~{n} ساعة',
+  stableOrFalling: 'مستقرّ / منخفض',
+  needMoreData: 'السجلّ غير كافٍ بعد',
+  projFrom: 'مُقدَّر من {n} عيّنة · اتجاه 7 أيام',
+  // live logs
+  liveTail: 'مباشر',
+  // digest
+  digestTitle: 'ملخّص أسبوعي بالذكاء الاصطناعي',
+  digestGenerate: 'أنشئ الملخّص',
+  digestGenerating: 'يُحلّل الأسبوع…',
+  digestHint: 'ملخّص AI قصير لآخر 7 أيام: التنبيهات وإعادات التشغيل واتجاهات الموارد.',
+  digestNoAi: 'اضبط مزوّد الذكاء الاصطناعي أولاً (الإعدادات ← الذكاء الاصطناعي).',
+  digestRange: 'آخر 7 أيام',
 }
 
 const dicts: Record<Lang, Record<string, string>> = { en, ar }
